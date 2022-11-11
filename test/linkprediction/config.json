@@ -1,0 +1,48 @@
+{
+  "encoders": {
+      "numerical": {
+          "output_dim": 4,
+          "dropout": 0.0,
+          "p_noise": 0.0,
+          "m_noise": 0.0,
+          "bias": false
+      },
+      "temporal": {
+          "output_dim": 16,
+          "dropout": 0.0,
+          "p_noise": 0.0,
+          "m_noise": 0.0,
+          "bias": false
+      },
+      "textual": {
+          "output_dim": 128,
+          "dropout": 0.0,
+          "p_noise": 0.0,
+          "m_noise": 0.0,
+          "bias": false,
+          "weights": "distilbert-base-multilingual-cased"
+      },
+      "spatial": {
+          "output_dim": 128,
+          "dropout": 0.0,
+          "p_noise": 0.0,
+          "m_noise": 0.0,
+          "bias": false
+      },
+      "visual": {
+          "output_dim": 128,
+          "dropout": 0.0,
+          "p_noise": 0.0,
+          "m_noise": 0.0,
+          "bias": false,
+          "weights": "IMAGENET1K_V1"
+      }
+  },
+  "optim": {
+      "numerical": {},
+      "temporal": {},
+      "textual": {},
+      "spatial": {},
+      "visual": {}
+  }
+}

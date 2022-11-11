@@ -1,0 +1,11 @@
+index,annotation
+0,http://kgbench.info/dt#base64Image
+1,http://www.opengis.net/ont/geosparql#wktLiteral
+2,http://www.w3.org/2001/XMLSchema#anyURI
+3,http://www.w3.org/2001/XMLSchema#date
+4,http://www.w3.org/2001/XMLSchema#dateTime
+5,http://www.w3.org/2001/XMLSchema#float
+6,http://www.w3.org/2001/XMLSchema#gYear
+7,http://www.w3.org/2001/XMLSchema#integer
+8,http://www.w3.org/2001/XMLSchema#string
+9,iri
