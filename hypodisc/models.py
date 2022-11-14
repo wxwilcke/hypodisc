@@ -52,7 +52,6 @@ class NeuralEncoders(nn.Module):
         self.encoders = nn.ModuleDict()
         self.modalities = dict()
         self.positions = dict()
-        self.sequence_length = dict()
         self.out_dim = 0
 
         language_model = None
@@ -122,7 +121,7 @@ class NeuralEncoders(nn.Module):
                     time_dim = mset[-1]
                     f_in = mset[1][0].shape[1-time_dim]  # vocab size
 
-                    sequence_lengths = mset[2]
+                    seq_lengths = mset[2]
                     seq_length_q25 = np.quantile(seq_lengths, 0.25)
                     if seq_length_q25 < TCNN.LENGTH_M:
                         seq_lengths = TCNN.LENGTH_S
@@ -139,7 +138,6 @@ class NeuralEncoders(nn.Module):
 
                 self.encoders[datatype] = encoder
                 self.modalities[modality].append(encoder)
-                self.sequence_length[datatype] = seq_lengths
                 self.out_dim += inter_dim
 
                 pos_new = pos + inter_dim
@@ -147,6 +145,7 @@ class NeuralEncoders(nn.Module):
                 pos = pos_new
 
     def forward(self, features):
+        # batch_idx := global indices of nodes to compute embeddings for
         data, batch_idx, device = features
 
         batchsize = len(batch_idx)
@@ -161,23 +160,23 @@ class NeuralEncoders(nn.Module):
 
                 encoder = self.encoders[datatype]
                 pos_begin, pos_end = self.positions[datatype]
-                seq_length = self.sequence_length[datatype]
 
-                # filter entities without this modality
+                # filter nodes that do not have this datatype
                 # same as intersection, but ensures order
                 batch_idx_local = [i for i in range(len(batch_idx))
                                    if batch_idx[i] in X_idx]
                 batch_idx_filtered = batch_idx[batch_idx_local]
 
-                # skip if no entities have this datatype
+                # skip if no nodes in this batch have this datatype
                 if len(batch_idx_filtered) <= 0:
                     continue
 
-                # match entity indices to sample indices
-                X_idx_inv = {v: i for i,v in enumerate(X_idx)}
-                X_batch_idx = [X_idx_inv[i] for i in batch_idx_filtered]
+                # gather relevant row numbers of X (ordered)
+                X_idx_inv = {e_idx: i for i,e_idx in enumerate(X_idx)}
+                X_batch_idx = [X_idx_inv[e_idx]
+                               for e_idx in batch_idx_filtered]
 
-                # create batch subset of X in same order as batch_idx_filtered
+                # build batch subset of X with relevant node values
                 if datatype in ["XMLSchema#string", "XMLSchema#anyURI"]:
                     X = [torch.tensor(X[i], dtype=torch.int32)
                          for i in X_batch_idx]
@@ -190,8 +189,7 @@ class NeuralEncoders(nn.Module):
                     X = [im_norm(x) for x in X]
 
                 # stack individual tensors and pad if different lengths
-                X_batch = torch.stack(zero_pad(X, time_dim),
-                                      dim=0)
+                X_batch = torch.stack(zero_pad(X, time_dim), dim=0)
                 if isinstance(encoder, Transformer):
                     X_batch.squeeze_()
 
@@ -201,9 +199,7 @@ class NeuralEncoders(nn.Module):
                 out_dev = encoder(X_batch_dev)
 
                 # map output to correct position on Y
-                batch_out_idx = [i for i in range(len(batch_idx))
-                                 if batch_idx[i] in batch_idx_filtered]
-                batch_out_dev[batch_out_idx, pos_begin:pos_end] = out_dev
+                batch_out_dev[batch_idx_local, pos_begin:pos_end] = out_dev
 
         return batch_out_dev
 
@@ -542,23 +538,30 @@ class DistMult(nn.Module):
     def forward(self, X):
         # data := rows of triples by global indices;
         #         indices must map to local embedding tensors
+        # E_idx := global indices of entities by order of embeddings
         # feature_embeddings := literal embeddings belonging to entities
-        (e_idc, p_idc, u_idc), feature_embeddings = X
+        (e_idc, p_idc, u_idc), (E_batch_idx, feature_embeddings) = X
 
         p = self.edge_embeddings[p_idc, :]
+        e = self.node_embeddings[e_idc, :]
+        u = self.node_embeddings[u_idc, :]
         if self.fuse_model is not None:
-            # fuse node and feature embeddings
-            index = np.union1d(e_idc, u_idc)
-            embeddings = torch.empty(self.node_embeddings.shape)
-            embeddings[index] = self.fuse_model([self.node_embeddings,
-                                                 feature_embeddings,
-                                                 index])
+            # fuse entity and literal embeddings
+            embeddings = self.fuse_model([self.node_embeddings[E_batch_idx],
+                                          feature_embeddings])
 
-            e = embeddings[e_idc, :]
-            u = embeddings[u_idc, :]
-        else:
-            e = self.node_embeddings[e_idc, :]
-            u = self.node_embeddings[u_idc, :]
+            # map global index to row of corresponding embeddings
+            E_batch_idx_inv = {e_idx: i for i,e_idx in enumerate(E_batch_idx)}
+
+            # replace default embeddings of left-hand side by fused ones
+            e_mask = np.isin(e_idc, E_batch_idx)
+            e_emb_idx = [E_batch_idx_inv[int(e_idx)] for e_idx in e_idc[e_mask]]
+            e[e_mask, :] = embeddings[e_emb_idx, :]
+
+            # replace default embeddings of right-hand side by fused ones
+            u_mask = np.isin(u_idc, E_batch_idx)
+            u_emb_idx = [E_batch_idx_inv[int(u_idx)] for u_idx in u_idc[u_mask]]
+            u[u_mask, :] = embeddings[u_emb_idx, :]
 
         # optimizations for common broadcasting
         if len(e.size()) == len(p.size()) == len(u.size()):
@@ -620,22 +623,22 @@ class LiteralE(nn.Module):
     def forward(self, X):
         # E := length H
         # L := length F (N_d in paper)
-        E, L, index = X
+        E, L = X
 
-        Wze = torch.einsum('ij,ki->kj', self.W_ze, E[index])
-        Wzl = torch.einsum('ij,ki->kj', self.W_zl, L[index])
+        Wze = torch.einsum('ij,ki->kj', self.W_ze, E)
+        Wzl = torch.einsum('ij,ki->kj', self.W_zl, L)
 
         Z = torch.sigmoid(Wze + Wzl + self.b)  # out H
         del Wze, Wzl
 
-        Whe = torch.einsum('ij,ki->kj', self.W_he, E[index])
-        Whl = torch.einsum('ij,ki->kj', self.W_hl, L[index])
+        Whe = torch.einsum('ij,ki->kj', self.W_he, E)
+        Whl = torch.einsum('ij,ki->kj', self.W_hl, L)
 
         H = torch.tanh(Whe + Whl)  # out H
         del Whe, Whl
 
         # compute result of function g
-        return Z * H + (1 - Z) * E[index]
+        return Z * H + (1 - Z) * E
 
     def reset_parameters(self):
         for param in self.parameters():

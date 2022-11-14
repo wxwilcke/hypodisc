@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import find_namespace_packages, setup
 
 
 def readme():
@@ -33,5 +33,5 @@ setup(
         'sacremoses',
         'importlib_metadata'
     ],
-    packages=['hypodisc'],
+    packages=find_namespace_packages(include=['hypodisc.*']),
 )

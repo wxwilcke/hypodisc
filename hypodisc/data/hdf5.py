@@ -92,6 +92,7 @@ class HDF5:
 
     def _write_data(self, group, dataset, compression):
         triples = dataset['triples']
+        entities = dataset['entities']
         train = dataset['trainset']
         test = dataset['testset']
         valid = dataset['validset']
@@ -104,6 +105,8 @@ class HDF5:
                              compression=compression)
 
         group.create_dataset("triples", data=triples,
+                             compression=compression)
+        group.create_dataset("entities", data=entities,
                              compression=compression)
 
     def _write_data_to_group(self, group, dtype_data, compression):
@@ -245,7 +248,7 @@ class HDF5:
     def _read_data(self, group):
         out = dict()
 
-        for name in ["triples", "trainset", "testset", "validset"]:
+        for name in ["triples", "entities", "trainset", "testset", "validset"]:
             out[name] = np.array(group.get(name))
 
         return out

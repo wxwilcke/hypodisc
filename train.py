@@ -60,7 +60,7 @@ def truedicts(data):
     return heads, tails
 
 
-def compute_ranks_fast(model, node_features, data, heads_and_tails, filtered,
+def compute_ranks_fast(model, features, data, heads_and_tails, filtered,
                        devices, flags):
     encoders, distmult = model
     encoder_device, decoder_device = devices
@@ -68,10 +68,16 @@ def compute_ranks_fast(model, node_features, data, heads_and_tails, filtered,
     flt = "[FLT]" if filtered else ""
 
     # compute feature embeddings
-    feature_embeddings = None
+    E_idx = np.empty(0, dtype=int)
+    E_data_idx = np.empty(0, dtype=int)
+    feature_embeddings = np.empty(0, dtype=float)
     if not flags.featureless:
-        X, X_idc = node_features
-        features = [X, X_idc, encoder_device]
+        X, E_idx = features
+        # TODO: can this be done here? (or do we need a full matrix?)
+        E_data_idx = np.union1d(data[np.isin(data[:, 0], E_idx), 0],
+                                data[np.isin(data[:, 2], E_idx), 2])
+
+        features = [X, E_data_idx, encoder_device]
         feature_embeddings = encoders(features).to(decoder_device)
 
     batch_size = flags.batchsize_mrr
@@ -105,11 +111,13 @@ def compute_ranks_fast(model, node_features, data, heads_and_tails, filtered,
             ar = ar.expand(batch_num_facts, num_nodes, 1)
             candidates = torch.cat([ar, bexp] if head else [bexp, ar], dim=2)
 
+            # TODO: mk subset of E_data_idx and embeddings?
             candidates_dev = candidates.to(decoder_device)
             scores = distmult([(candidates_dev[:, :, 0],
                                 candidates_dev[:, :, 1],
                                 candidates_dev[:, :, 2]),
-                               feature_embeddings]).to('cpu')
+                               (E_data_idx,
+                                feature_embeddings)]).to('cpu')
 
             if decoder_device != torch.device('cpu'):
                 del candidates_dev
@@ -137,11 +145,11 @@ def compute_ranks_fast(model, node_features, data, heads_and_tails, filtered,
     return ranks + 1
 
 
-def train_once(model, optimizer, loss_function, X, X_idc,
+def train_once(model, optimizer, loss_function, X, E_idx,
                data, devices, flags):
     """ data := list of integer-encoded triples mapped to entity_idx index
         X := dict of features per datatype
-        X_idc := list of integer-encoded entities with original mapping
+        E_idx := list of integer-encoded entities with original mapping
     """
     encoders, distmult = model
     encoder_device, decoder_device = devices
@@ -153,6 +161,7 @@ def train_once(model, optimizer, loss_function, X, X_idc,
                for begin in range(0, num_samples, flags.batchsize)]
     num_batches = len(batches)
 
+    # TODO: cache computes embeddings?
     for batch_id, batch in enumerate(batches):
         batch_str = " - batch %2.d / %d" % (batch_id+1, num_batches)
         print(batch_str, end='\b'*len(batch_str), flush=True)
@@ -160,29 +169,21 @@ def train_once(model, optimizer, loss_function, X, X_idc,
         batch_data = data[batch.start:batch.stop]  # global indices
         num_batch_samples = batch_data.shape[0]
 
+        batch_idx = np.union1d(batch_data[:, 0],
+                               batch_data[:, 2])  # all nodes in batch
+
         # compute feature embeddings
-        feature_embeddings_dev = None
+        feature_embeddings_dev = np.empty(0, dtype=float)
+        E_batch_idx = np.empty(0, dtype=int)
         if not flags.featureless:
             encoders.train()
 
             # entities to compute embeddings for
-            # TODO: move out of batches and cache computes ones
-            entities_idc = np.union1d(batch_data[np.isin(batch_data[:, 0], X_idc), 0],
-                                      batch_data[np.isin(batch_data[:, 2], X_idc), 2])
-
-            batch_idx = X_idc[entities_idc]  # original index
-
-            # TODO: check from here
+            E_batch_idx = batch_idx[np.isin(batch_idx, E_idx)]
 
             # encoder pass
-            features_batch = [X, batch_idx, encoder_device]
-            encoders(features_batch)
-
-            # we still need the full embedding tensor for LiteralE
-            # the returned tensors has the same order as X_idc
-            with torch.no_grad():
-                features_full = [X, X_idc, encoder_device]
-                feature_embeddings_dev = encoders(features_full).to(decoder_device)
+            features_batch = [X, E_batch_idx, encoder_device]
+            feature_embeddings_dev = encoders(features_batch).to(decoder_device)
 
         # sample negative triples by copying and corrupting positive triples
         num_corrupt = num_batch_samples//(flags.neg_sampling_ratio + 1)
@@ -198,11 +199,12 @@ def train_once(model, optimizer, loss_function, X, X_idc,
 
         # corrupt elements by replacing them with random elements
         # note that some may still exist
-        num_nodes = distmult.node_embeddings.shape[0]
-        corrupt_heads = np.random.choice(num_nodes,
+        # TODO: improve filter (within class? avoid true pairs? too few nodes?)
+        #num_nodes = distmult.node_embeddings.shape[0]
+        corrupt_heads = np.random.choice(batch_idx,
                                          num_corrupt_head,
                                          replace=True)
-        corrupt_tails = np.random.choice(num_nodes,
+        corrupt_tails = np.random.choice(batch_idx,
                                          num_corrupt_tail,
                                          replace=True)
 
@@ -221,13 +223,15 @@ def train_once(model, optimizer, loss_function, X, X_idc,
         Y_hat[:num_batch_samples] = distmult([(data_dev[:, 0],
                                                data_dev[:, 1],
                                                data_dev[:, 2]),
-                                              feature_embeddings_dev]).to('cpu')
+                                              (E_batch_idx,
+                                              feature_embeddings_dev)]).to('cpu')
 
         corrupted_data_dev = corrupted_data.to(decoder_device)
         Y_hat[-num_corrupt:] = distmult([(corrupted_data_dev[:, 0],
                                           corrupted_data_dev[:, 1],
                                           corrupted_data_dev[:, 2]),
-                                         feature_embeddings_dev]).to('cpu')
+                                         (E_batch_idx,
+                                         feature_embeddings_dev)]).to('cpu')
 
         # compute loss
         batch_loss = binary_crossentropy(Y_hat, Y, loss_function)
@@ -241,7 +245,7 @@ def train_once(model, optimizer, loss_function, X, X_idc,
     return np.mean(loss_lst)
 
 
-def test_once(model, node_features, data, heads_and_tails, devices, flags):
+def test_once(model, features, data, heads_and_tails, devices, flags):
     encoders, distmult = model
 
     distmult.eval()
@@ -262,7 +266,7 @@ def test_once(model, node_features, data, heads_and_tails, devices, flags):
                 continue
 
             ranks = compute_ranks_fast(model,
-                                       node_features,
+                                       features,
                                        data,
                                        heads_and_tails,
                                        filtered,
@@ -281,7 +285,7 @@ def test_once(model, node_features, data, heads_and_tails, devices, flags):
     return (mrr, hits_at_k, rankings)
 
 
-def train_test_model(model, optimizer, loss_function, X, X_idc, splits, 
+def train_test_model(model, optimizer, loss_function, X, E_idx, splits, 
                      epoch, output_writer, devices, flags):
     if flags.save_output:
         header = ["epoch", "loss"]
@@ -320,7 +324,7 @@ def train_test_model(model, optimizer, loss_function, X, X_idc, splits,
         mode_str = "[TRAIN] %3.d " % epoch
         print(mode_str, end='', flush=True)
 
-        loss = train_once(model, optimizer, loss_function, X, X_idc,
+        loss = train_once(model, optimizer, loss_function, X, E_idx,
                           training, devices, flags)
 
         if flags.L1lambda > 0:
@@ -348,7 +352,7 @@ def train_test_model(model, optimizer, loss_function, X, X_idc, splits,
             mode_str = "[EVAL] "
             print(mode_str, end='', flush=True)
 
-            train_mrr, train_hits, _ = test_once(model, (X, X_idc),
+            train_mrr, train_hits, _ = test_once(model, (X, E_idx),
                                                  training,
                                                  (heads, tails),
                                                  devices, flags)
@@ -370,7 +374,7 @@ def train_test_model(model, optimizer, loss_function, X, X_idc, splits,
                 mode_str = "[VALID] "
                 print(mode_str, end='', flush=True)
 
-                valid_mrr, valid_hits, _ = test_once(model, (X, X_idc),
+                valid_mrr, valid_hits, _ = test_once(model, (X, E_idx),
                                                      validation,
                                                      (heads, tails),
                                                      devices, flags)
@@ -417,7 +421,7 @@ def train_test_model(model, optimizer, loss_function, X, X_idc, splits,
     ranks = None
     if flags.test:
         t0 = time()
-        test_mrr, test_hits, ranks = test_once(model, (X, X_idc), testing,
+        test_mrr, test_hits, ranks = test_once(model, (X, E_idx), testing,
                                                (heads, tails), devices,
                                                flags)
 
@@ -451,7 +455,7 @@ def main(dataset, output_writer, ranks_writer, devices, config, flags):
 
     # gather features belonging to entities
     X = dict()
-    X_idc = None
+    E_idx = np.empty(0, dtype=int)
     if not flags.featureless:
         for modality in flags.modalities:
             if modality not in dataset.keys():
@@ -475,7 +479,7 @@ def main(dataset, output_writer, ranks_writer, devices, config, flags):
             sys.exit(1)
 
         # global indices of entities in data
-        X_idc = np.array(dataset['entities'])
+        E_idx = np.array(dataset['entities'])
 
     # triples by global index of their components
     data = torch.from_numpy(dataset['triples'])  # N x (s, p, o)
@@ -556,7 +560,7 @@ def main(dataset, output_writer, ranks_writer, devices, config, flags):
         encoders.to(encoder_device)
 
     epoch, ranks = train_test_model(model, optimizer, loss,
-                                    X, X_idc, splits, epoch,
+                                    X, E_idx, splits, epoch,
                                     output_writer, devices,
                                     flags)
 

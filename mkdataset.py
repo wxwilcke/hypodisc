@@ -47,6 +47,7 @@ if __name__ == "__main__":
             elif name in _MODALITIES:
                 hf.write_modality_data(item, name)
             elif name in ['triples',
+                          'entities',
                           'trainset',
                           'testset',
                           'validset']:
