@@ -551,16 +551,19 @@ class DistMult(nn.Module):
                                           feature_embeddings])
 
             # map global index to row of corresponding embeddings
-            E_batch_idx_inv = {e_idx: i for i,e_idx in enumerate(E_batch_idx)}
+            E_batch_idx_inv = {e_idx.item(): i
+                               for i, e_idx in enumerate(E_batch_idx)}
 
             # replace default embeddings of left-hand side by fused ones
-            e_mask = np.isin(e_idc, E_batch_idx)
-            e_emb_idx = [E_batch_idx_inv[int(e_idx)] for e_idx in e_idc[e_mask]]
+            e_mask = torch.isin(e_idc, E_batch_idx)
+            e_emb_idx = [E_batch_idx_inv[e_idx.item()]
+                         for e_idx in e_idc[e_mask]]
             e[e_mask, :] = embeddings[e_emb_idx, :]
 
             # replace default embeddings of right-hand side by fused ones
-            u_mask = np.isin(u_idc, E_batch_idx)
-            u_emb_idx = [E_batch_idx_inv[int(u_idx)] for u_idx in u_idc[u_mask]]
+            u_mask = torch.isin(u_idc, E_batch_idx)
+            u_emb_idx = [E_batch_idx_inv[u_idx.item()]
+                         for u_idx in u_idc[u_mask]]
             u[u_mask, :] = embeddings[u_emb_idx, :]
 
         # optimizations for common broadcasting

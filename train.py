@@ -68,16 +68,13 @@ def compute_ranks_fast(model, features, data, heads_and_tails, filtered,
     flt = "[FLT]" if filtered else ""
 
     # compute feature embeddings
-    E_idx = np.empty(0, dtype=int)
-    E_data_idx = np.empty(0, dtype=int)
-    feature_embeddings = np.empty(0, dtype=float)
+    E_idx = torch.empty(0, dtype=int)
+    feature_embeddings = torch.empty(0, dtype=float)
     if not flags.featureless:
         X, E_idx = features
-        # TODO: can this be done here? (or do we need a full matrix?)
-        E_data_idx = np.union1d(data[np.isin(data[:, 0], E_idx), 0],
-                                data[np.isin(data[:, 2], E_idx), 2])
-
-        features = [X, E_data_idx, encoder_device]
+        # compute embeddings over all entities
+        # TODO: compute in batches?
+        features = [X, E_idx, encoder_device]
         feature_embeddings = encoders(features).to(decoder_device)
 
     batch_size = flags.batchsize_mrr
@@ -111,12 +108,13 @@ def compute_ranks_fast(model, features, data, heads_and_tails, filtered,
             ar = ar.expand(batch_num_facts, num_nodes, 1)
             candidates = torch.cat([ar, bexp] if head else [bexp, ar], dim=2)
 
-            # TODO: mk subset of E_data_idx and embeddings?
+            # compute scores over all possible candidate nodes
+            # TODO: mv filter up so unecessary ones aren't computed?
             candidates_dev = candidates.to(decoder_device)
             scores = distmult([(candidates_dev[:, :, 0],
                                 candidates_dev[:, :, 1],
                                 candidates_dev[:, :, 2]),
-                               (E_data_idx,
+                               (E_idx,
                                 feature_embeddings)]).to('cpu')
 
             if decoder_device != torch.device('cpu'):
@@ -169,17 +167,17 @@ def train_once(model, optimizer, loss_function, X, E_idx,
         batch_data = data[batch.start:batch.stop]  # global indices
         num_batch_samples = batch_data.shape[0]
 
-        batch_idx = np.union1d(batch_data[:, 0],
-                               batch_data[:, 2])  # all nodes in batch
+        # union that returns all nodes in batch
+        batch_idx = torch.cat((batch_data[:, 0], batch_data[:, 2])).unique()
 
         # compute feature embeddings
-        feature_embeddings_dev = np.empty(0, dtype=float)
-        E_batch_idx = np.empty(0, dtype=int)
+        feature_embeddings_dev = torch.empty(0, dtype=float)
+        E_batch_idx = torch.empty(0, dtype=int)
         if not flags.featureless:
             encoders.train()
 
             # entities to compute embeddings for
-            E_batch_idx = batch_idx[np.isin(batch_idx, E_idx)]
+            E_batch_idx = batch_idx[torch.isin(batch_idx, E_idx)]
 
             # encoder pass
             features_batch = [X, E_batch_idx, encoder_device]
@@ -455,7 +453,7 @@ def main(dataset, output_writer, ranks_writer, devices, config, flags):
 
     # gather features belonging to entities
     X = dict()
-    E_idx = np.empty(0, dtype=int)
+    E_idx = torch.empty(0, dtype=int)
     if not flags.featureless:
         for modality in flags.modalities:
             if modality not in dataset.keys():
@@ -479,7 +477,7 @@ def main(dataset, output_writer, ranks_writer, devices, config, flags):
             sys.exit(1)
 
         # global indices of entities in data
-        E_idx = np.array(dataset['entities'])
+        E_idx = torch.LongTensor(dataset['entities'])
 
     # triples by global index of their components
     data = torch.from_numpy(dataset['triples'])  # N x (s, p, o)
