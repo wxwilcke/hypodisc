@@ -108,57 +108,6 @@ def _generate_context(graphs):
     return ((nodes, nodetypes, relations, triples_int), e2i, r2i)
 
 
-def _generate_splits(splits, e2i, r2i):
-    """ Expect splits as CSV files with two (anonymous) columns: node and class
-    """
-    classes = set()
-    for df in splits:
-        if df is None:
-            continue
-
-        classes |= set(df.iloc[:, 1])
-    c2i = {c: i for i, c in enumerate(classes)}
-
-    df_train, df_test, df_valid = splits
-    if df_train is not None:
-        df_train = pd.DataFrame(zip(
-            [e2i[e, "iri"] for e in df_train.iloc[:, 0]],
-            [c2i[c] for c in df_train.iloc[:, 1]]),
-                                columns=["node_index", "class_index"])
-
-    if df_test is not None:
-        df_test = pd.DataFrame(zip(
-            [e2i[e, "iri"] for e in df_test.iloc[:, 0]],
-            [c2i[c] for c in df_test.iloc[:, 1]]),
-                               columns=["node_index", "class_index"])
-
-    if df_valid is not None:
-        df_valid = pd.DataFrame(zip(
-            [e2i[e, "iri"] for e in df_valid.iloc[:, 0]],
-            [c2i[c] for c in df_valid.iloc[:, 1]]),
-                                columns=["node_index", "class_index"])
-
-    return (df_train, df_test, df_valid)
-
-
-def generate_node_classification_mapping(flags):
-    hdtfile = flags.context
-    g = [Graph(store=HDTStore(hdtfile))]
-
-    train, test, valid = None, None, None
-    if flags.train is not None:
-        train = pd.read_csv(flags.train, header=None)
-    if flags.test is not None:
-        test = pd.read_csv(flags.test, header=None)
-    if flags.valid is not None:
-        valid = pd.read_csv(flags.valid, header=None)
-
-    data, e2i, r2i = _generate_context(g)
-    df_splits = _generate_splits((train, test, valid), e2i, r2i)
-
-    return (data, df_splits)
-
-
 def _generate_link_prediction_mapping_standalone(flags):
     g_list = list()
     g_len_list = list()
@@ -247,43 +196,23 @@ def generate_link_prediction_mapping(flags):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--context", help="HDT graph (node "
-                        + "classification) or previously generated CSV "
-                        + "directory to align to (link prediction)",
+    parser.add_argument("-c", "--context", help="Previously generated CSV "
+                        + "directory to align to",
                         default=None)
-    parser.add_argument("-d", "--dir", help="Output directory", default="./")
-    parser.add_argument("-ts", "--train", help="Training set (CSV) with "
-                        + "samples on the left-hand side and their classes "
-                        + "on the right (node classification), or HDT graph "
-                        + "(link prediction)", default=None)
-    parser.add_argument("-ws", "--test", help="Withheld set (CSV) for testing "
-                        + "with samples on the left-hand side and their "
-                        + "classes on the right (node classification), or HDT "
-                        + "graph (link prediction)", default=None)
-    parser.add_argument("-vs", "--valid", help="Validation set (CSV) with "
-                        + "samples on the left-hand side and their classes "
-                        + "on the right (node classification), or HDT graph "
-                        + "(link prediction)", default=None)
+    parser.add_argument("-o", "--output", help="Output directory", default="./")
+    parser.add_argument("-ts", "--train", help="Training set (HDT graph)",
+                        default=None)
+    parser.add_argument("-ws", "--test", help="Withheld set for testing "
+                        + "(HDT graph)", default=None)
+    parser.add_argument("-vs", "--valid", help="Validation set (HDT graph)",
+                        default=None)
     flags = parser.parse_args()
 
-    path = flags.dir if flags.dir.endswith('/') else flags.dir + '/'
-    if flags.context is not None and flags.context.lower().endswith('.hdt'):
-        data, splits = generate_node_classification_mapping(flags)
+    path = flags.Output if flags.output.endswith('/') else flags.output + '/'
 
-        df_train, df_test, df_valid = splits
-        if df_train is not None:
-            df_train.to_csv(path+'training.int.csv',
-                            index=False, header=True)
-        if df_test is not None:
-            df_test.to_csv(path+'testing.int.csv',
-                           index=False, header=True)
-        if df_valid is not None:
-            df_valid.to_csv(path+'validation.int.csv',
-                            index=False, header=True)
-    else:  # assume link prediction
-        data, df_splits = generate_link_prediction_mapping(flags)
-        df_splits.to_csv(path+'linkprediction_splits.int.csv',
-                         index=False, header=True)
+    data, df_splits = generate_link_prediction_mapping(flags)
+    df_splits.to_csv(path+'linkprediction_splits.int.csv',
+                     index=False, header=True)
 
     if data is not None:
         df_nodes, df_nodetypes, df_relations, df_triples = data

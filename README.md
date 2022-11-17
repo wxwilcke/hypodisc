@@ -6,6 +6,54 @@ The goal of discovering hypotheses is redefined as a multi-hop link prediction a
 
 **This is a work in progress**
 
+## Getting Started
+
+1) To install, clone the repository and run:
+
+    cd hypodisc/ && pip install .
+
+This will install this package on your computer and will take care of any necessary dependencies.
+
+2) Since the model does not directly work on RDF data, the first step entails the creation of the necessary input files. This can be done by calling the *generateInput* script with the training (-ts), testing (-ws), and, optionally, validation (-vs) splits are input. The splits are expected to be RDF graphs in [HDT format](https://www.rdfhdt.org). A tool to convert many common RDF serialization formats to HDT can be found [here](https://github.com/rdfhdt/hdt-cpp).
+
+To generate the input files, run:
+
+    python generateInput.py -ts train.hdt -ws test.hdt -vs valid.hdt -o myproject/
+
+This will take files *train.hdt*, *test.hdt*, and *valid.hdt*, and will convert their content to the [KGbench](http://kgbench.info) format, which can more easily be processed by a data science pipeline. The output is written to the specified directory (-o), here called *myproject*.
+
+3) Next, start the training process by calling the *train* script with the directory housing the just-generated files as input (-i):
+
+    python train.py -i myproject/
+
+This will pre-process the data and use these data to train the model by learning clusters of entities with similar characteristics. To avoid having to pre-process the data each time, the *mkdataset* can be used to create a HDF5 file of the preprocessed data which can be used as input instead:
+
+(optional) To generate the HDF5 dataset file, run:
+
+    python mkdataset.py -i myproject/ -o myproject/
+
+which will create a file called *dataset.h5* in the specified directory (-o).
+
+Finally, run the HypoDisc with this file as input:
+
+    python train.py -i myproject/dataset.h5
+
+Please see the help functions (`--help`) of these scripts for more information and more options.
+
+## Multimodal learning
+
+This pipeline includes experimental support for multimodal features, stored as literal nodes. These are disabled by default, but can be enabled by specifying one or more of the following modalities: numerical, temporal, textual, spatial, and visual. These modalities map to their corresponding [XSD datatypes](https://www.w3.org/TR/xmlschema11-2/#built-in-datatypes), or [b64Image](http://kgbench.info) for images encoded as string literals. Note that, for literals to be considered a member of a modality they should correctly be annotated with a datatype or language tag..
+
+To create a HDF5 file which in includes text and images, run:
+
+    python mkdataset.py -i myproject/ -o myproject/ -m textual visual
+
+To now include these modalities in the learning process, repeat the same when calling the *train* module:
+
+    python train.py -i myproject/dataset.h5 -m textual visual
+
+Note that, once the modalities are included in the HDF5 file, they can be enabled or disabled on the fly during training without regenerating the HDF5 file.
+
 ## Acknowledgements
 
 This research is partly funded by [CLARIAH](https://www.clariah.nl)
