@@ -1,0 +1,12 @@
+===================================================================
+ t-SNE can be used to visualize the clusters in the embedding space.
+ Run the following commands to enable this feature:
+
+ 1) git submodule init
+ 2) git submodule update
+ 3) cd bhtsne/
+ 4) g++ sptree.cpp tsne.cpp tsne_main.cpp -o bh_tsne -O3
+ 5) cd ..
+
+ For more information, see https://github.com/lvdmaaten/bhtsne
+===================================================================

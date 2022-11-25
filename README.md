@@ -54,6 +54,17 @@ To now include these modalities in the learning process, repeat the same when ca
 
 Note that, once the modalities are included in the HDF5 file, they can be enabled or disabled on the fly during training without regenerating the HDF5 file.
 
+## Generating Clusters
+
+[t-SNE](https://lvdmaaten.github.io/tsne/) can be used to visualize the clusters in the entity embedding space. To enable this feature, you first need to install t-SNE as a submodule of this repository, which can be done using the following commands:
+
+    git submodule init && git submodule update
+    cd bhtsne/ && g++ sptree.cpp tsne.cpp tsne_main.cpp -o bh_tsne -O3 && cd -
+
+Once installed, you can generate the clusters each evaluation by starting the training sequence with the `--save_clusters` flag. This will write the clusters to the output directory (e.g. _myproject_). The `plotClusters` helper script can then be used to visualize them:
+
+    python plotClusters myproject/
+
 ## Acknowledgements
 
 This research is partly funded by [CLARIAH](https://www.clariah.nl)

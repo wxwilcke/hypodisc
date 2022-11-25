@@ -1,4 +1,4 @@
-#!/usr/bin.env python
+#!/usr/bin/env python
 
 import argparse
 import json
@@ -14,8 +14,8 @@ from hypodisc.data import dataset
 from hypodisc.data.hdf5 import HDF5
 from hypodisc.data.tsv import TSV
 from hypodisc.models import DistMult, NeuralEncoders
-from hypodisc.utils import (add_noise_, binary_crossentropy, EarlyStop,
-                            getConfParam)
+from hypodisc.utils import (add_noise_, binary_crossentropy, compute_clusters,
+                            EarlyStop, getConfParam)
 
 
 _MODALITIES = ["textual", "numerical", "temporal", "visual", "spatial"]
@@ -284,7 +284,7 @@ def test_once(model, features, data, heads_and_tails, devices, flags):
 
 
 def train_test_model(model, optimizer, loss_function, X, E_idx, splits, 
-                     epoch, output_writer, devices, flags):
+                     epoch, output_writer, devices, out_dir, flags):
     if flags.save_output:
         header = ["epoch", "loss"]
         for split in ["train", "valid", "test"]:
@@ -395,6 +395,7 @@ def train_test_model(model, optimizer, loss_function, X, E_idx, splits,
             else:
                 # add valid set placeholder
                 result_str.extend([-1, -1, -1, -1, -1, -1, -1, -1])
+
         else:
             # add train and valid set placeholder
             result_str.extend([-1 for _ in range(16)])
@@ -405,6 +406,17 @@ def train_test_model(model, optimizer, loss_function, X, E_idx, splits,
         result_str.extend([-1, -1, -1, -1, -1, -1, -1, -1])
         if flags.save_output:
             output_writer.writerow(result_str)
+
+        if flags.save_clusters and (epoch % flags.eval_interval == 0
+                                    or epoch == nepoch-1):
+            print("[CLUST] Computing clusters using t-SNE...", end='',
+                  flush=True)
+            try:
+                compute_clusters(model, epoch, out_dir)
+
+                print(" done", flush=True)
+            except:
+                print(" failed", flush=True)
 
         if early_stop is not None and early_stop.stop:
             print("[VALID] Stopping early - best score after %d epoch" %
@@ -447,8 +459,8 @@ def train_test_model(model, optimizer, loss_function, X, E_idx, splits,
 
     return (epoch, ranks)
 
-
-def main(dataset, output_writer, ranks_writer, devices, config, flags):
+def main(dataset, output_writer, ranks_writer, devices,
+         config, out_dir, flags):
     flags.featureless = False if len(flags.modalities) > 0 else True
 
     # gather features belonging to entities
@@ -560,7 +572,7 @@ def main(dataset, output_writer, ranks_writer, devices, config, flags):
     epoch, ranks = train_test_model(model, optimizer, loss,
                                     X, E_idx, splits, epoch,
                                     output_writer, devices,
-                                    flags)
+                                    out_dir, flags)
 
     if flags.test and flags.save_output:
         if flags.filter_ranks:
@@ -624,6 +636,9 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output directory",
                         default=None)
     parser.add_argument("--save_dataset", help="Save dataset to disk",
+                        action="store_true")
+    parser.add_argument("--save_clusters", help="Save node embedding clusters"
+                        + " to disk after each evaluation (requires t-SNE)",
                         action="store_true")
     parser.add_argument("--save_dataset_and_exit", help="Save dataset to disk "
                         + "and exit", action="store_true")
@@ -698,7 +713,7 @@ if __name__ == "__main__":
 
     model, optimizer, loss, epoch = main(data, output_writer,
                                          ranks_writer, devices,
-                                         config, flags)
+                                         config, out_dir, flags)
 
     if flags.save_checkpoint:
         f_state = out_dir + "model_state_%s_%d.pkl" % (t_init, epoch)

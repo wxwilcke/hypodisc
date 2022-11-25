@@ -1,11 +1,28 @@
-#!/usr/bin.env python
+#!/usr/bin/env python
 
 from copy import deepcopy
 
 import numpy as np
 import torch
 import torch.nn.functional as f
+try:
+    from bhtsne.bhtsne import run_bh_tsne
+    print("[AVAIL] Module t-SNE detected")
+except ModuleNotFoundError:
+    pass
 
+
+def compute_clusters(model, epoch, out_dir, **kwargs):
+    # TODO: check if need to fuse embeddings?
+    _, distmult = model
+    node_embeddings = distmult.node_embeddings
+
+    clusters = run_bh_tsne(node_embeddings.detach().numpy(),
+                           initial_dims=node_embeddings.shape[1],
+                           **kwargs)
+
+    filename = f"node_embedding_clusters.{epoch}_epoch.gz"
+    np.savetxt(out_dir+filename, X=clusters)
 
 def getConfParam(config, name, default=None):
     """ Access nested dict by dot-separated key strings
