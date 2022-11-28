@@ -10,7 +10,7 @@ except ModuleNotFoundError:
 import numpy as np
 
 
-def make_plot(data):
+def make_plot(data, num_samples=-1):
     # compute optimal grid layout heuristically
     num_plots = len(data)
     plot_dims = np.array([[i, j, abs(i-j)]
@@ -28,8 +28,13 @@ def make_plot(data):
 
 
         plot_dims = plot_dims[plot_dims[:,2] == plot_dims[:,2].min()][0]
-        rows = max(plot_dims[0], plot_dims[1])
-        cols = max(plot_dims[0], plot_dims[1])
+        rows, cols = plot_dims[0], plot_dims[1]
+
+        # exactly three plots
+        if rows <= 1:
+            rows += 1
+        if cols <= 1:
+            cols += 1
 
     figure, axis = plt.subplots(rows, cols, sharex=True, sharey=True)
     if not isinstance(axis, np.ndarray):
@@ -42,12 +47,22 @@ def make_plot(data):
         axis = np.expand_dims(axis, axis=0)
 
     i = 0
+    samples = np.empty(0, dtype=int)
     for k, nepoch in enumerate(sorted(data.keys())):
         clusters = np.loadtxt(data[nepoch])
 
+        if k == 0:
+            samples = np.arange(clusters.shape[0])
+            if num_samples > 0:
+                num_samples = min(num_samples,
+                                  samples.shape[0])
+                samples = np.random.choice(samples,
+                                           num_samples,
+                                           replace=False)
+
         j = k%cols
-        axis[i, j].scatter(clusters[:, 0],
-                           clusters[:, 1],
+        axis[i, j].scatter(clusters[samples, 0],
+                           clusters[samples, 1],
                            marker='+',
                            s=2,
                            c='#000000')
@@ -56,12 +71,15 @@ def make_plot(data):
         if (j + 1) >= cols:
             i += 1
 
-    figure.suptitle("Entity Embeddings Space")
+    if num_samples > 0:
+        figure.suptitle(f"Entity Embeddings Space (N = {num_samples})")
+    else:
+        figure.suptitle("Entity Embeddings Space")
     plt.tight_layout()
 
     return plt
 
-def main(work_dir):
+def main(work_dir, num_samples=-1):
     work_dir = Path(work_dir)
 
     data = dict()
@@ -74,11 +92,16 @@ def main(work_dir):
 
         data[nepoch] = file
 
-    return make_plot(data)
+    assert len(data) > 0, "Cluster data not found - Did you specify the"\
+                           " correct directory?"
+
+    return make_plot(data, num_samples)
 
 if __name__ == "__main__":
-    assert len(sys.argv) == 2, "Run this as `python plotClusters.py <work dir>'"
+    assert len(sys.argv) >= 2 and len(sys.argv) <= 3, "Run this as "\
+            "`python plotClusters.py <work dir> [sample size]'"
     work_dir = sys.argv[1]
+    num_samples = -1 if len(sys.argv) == 2 else int(sys.argv[2])
 
-    plots = main(work_dir)
+    plots = main(work_dir, num_samples)
     plots.show()

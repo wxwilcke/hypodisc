@@ -14,6 +14,7 @@ except ModuleNotFoundError:
 
 def compute_clusters(model, epoch, out_dir, **kwargs):
     # TODO: check if need to fuse embeddings?
+    # TODO: only do entities
     _, distmult = model
     node_embeddings = distmult.node_embeddings
 
@@ -21,7 +22,7 @@ def compute_clusters(model, epoch, out_dir, **kwargs):
                            initial_dims=node_embeddings.shape[1],
                            **kwargs)
 
-    filename = f"node_embedding_clusters.{epoch}_epoch.gz"
+    filename = f"node_embedding_clusters_{epoch}_epoch.gz"
     np.savetxt(out_dir+filename, X=clusters)
 
 def getConfParam(config, name, default=None):
