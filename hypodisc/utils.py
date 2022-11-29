@@ -12,13 +12,30 @@ except ModuleNotFoundError:
     pass
 
 
-def compute_clusters(model, epoch, out_dir, **kwargs):
-    # TODO: check if need to fuse embeddings?
-    # TODO: only do entities
-    _, distmult = model
-    node_embeddings = distmult.node_embeddings
+def compute_clusters(model, features, epoch, out_dir, featureless, devices, 
+                     **kwargs):
+    encoders, distmult = model
+    encoder_device, decoder_device = devices
 
-    clusters = run_bh_tsne(node_embeddings.detach().numpy(),
+    X, E_idx = features
+    node_embeddings = distmult.node_embeddings[E_idx, :]
+    if not featureless:
+        # compute embeddings over all entities
+        # TODO: compute in batches?
+        features = [X, E_idx, encoder_device]
+        with torch.no_grad():
+            feature_embeddings = encoders(features).to(decoder_device)
+
+            # fuse entity and literal embeddings
+            node_embeddings = distmult.fuse_model([node_embeddings,
+                                                   feature_embeddings])
+
+    node_embeddings = node_embeddings.detach().numpy()
+    node_embeddings = ((node_embeddings - np.mean(node_embeddings))
+                       / np.std(node_embeddings))  # standardize
+
+    # TODO: add sampling parameter?
+    clusters = run_bh_tsne(node_embeddings,
                            initial_dims=node_embeddings.shape[1],
                            **kwargs)
 

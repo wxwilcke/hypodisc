@@ -65,7 +65,7 @@ def compute_ranks_fast(model, features, data, heads_and_tails, filtered,
     encoders, distmult = model
     encoder_device, decoder_device = devices
 
-    flt = "[FLT]" if filtered else ""
+    flt = "[FLT]" if filtered else "    "  # use non-empty to clear output
 
     # compute feature embeddings
     E_idx = torch.empty(0, dtype=int)
@@ -198,7 +198,6 @@ def train_once(model, optimizer, loss_function, X, E_idx,
         # corrupt elements by replacing them with random elements
         # note that some may still exist
         # TODO: improve filter (within class? avoid true pairs? too few nodes?)
-        #num_nodes = distmult.node_embeddings.shape[0]
         corrupt_heads = np.random.choice(batch_idx,
                                          num_corrupt_head,
                                          replace=True)
@@ -412,7 +411,8 @@ def train_test_model(model, optimizer, loss_function, X, E_idx, splits,
             print("[CLUST] Computing clusters using t-SNE...", end='',
                   flush=True)
             try:
-                compute_clusters(model, epoch, out_dir)
+                compute_clusters(model, (X, E_idx), epoch, out_dir,
+                                 flags.featureless, devices)
 
                 print(" done", flush=True)
             except:
@@ -465,7 +465,6 @@ def main(dataset, output_writer, ranks_writer, devices,
 
     # gather features belonging to entities
     X = dict()
-    E_idx = torch.empty(0, dtype=int)
     if not flags.featureless:
         for modality in flags.modalities:
             if modality not in dataset.keys():
@@ -488,9 +487,6 @@ def main(dataset, output_writer, ranks_writer, devices,
             print("No data found - Exiting")
             sys.exit(1)
 
-        # global indices of entities in data
-        E_idx = torch.LongTensor(dataset['entities'])
-
     # triples by global index of their components
     data = torch.from_numpy(dataset['triples'])  # N x (s, p, o)
 
@@ -505,6 +501,9 @@ def main(dataset, output_writer, ranks_writer, devices,
 
     num_nodes = dataset['num_nodes']  # entities, blank nodes, and literals
     num_relations = dataset['num_relations']  # nr of unique predicates
+       
+    # global indices of entities in data
+    E_idx = torch.LongTensor(dataset['entities'])
  
     encoders = None
     distmult = None
@@ -637,7 +636,7 @@ if __name__ == "__main__":
                         default=None)
     parser.add_argument("--save_dataset", help="Save dataset to disk",
                         action="store_true")
-    parser.add_argument("--save_clusters", help="Save node embedding clusters"
+    parser.add_argument("--save_clusters", help="Save entity embedding clusters"
                         + " to disk after each evaluation (requires t-SNE)",
                         action="store_true")
     parser.add_argument("--save_dataset_and_exit", help="Save dataset to disk "
