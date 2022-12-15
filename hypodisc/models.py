@@ -39,6 +39,10 @@ def freeze_(model, layer='', _grad=False):
 def unfreeze_(model, layer=''):
     freeze_(model, layer, _grad=True)
 
+
+""" Modules """
+
+
 class NeuralEncoders(nn.Module):
     def __init__(self,
                  dataset,
@@ -245,6 +249,171 @@ class MLP(nn.Module):
     def init(self):
         for param in self.parameters():
             nn.init.uniform_(param)
+
+
+class DenoisingAE(nn.Module):
+    NOISE_GAUSSIAN = 0
+    NOISE_MASKING = 1
+    NOISE_SALTANDPEPPER = 2
+
+    NOISE_GAUSSIAN_ALPHA = 0.1
+    NOISE_MASKING_PROB = 0.1
+    NOISE_SALTANDPEPPER_PROB = 0.1
+
+    def __init__(self,
+                 input_dim,
+                 bneck_dim,
+                 noise=NOISE_SALTANDPEPPER,
+                 modifier=None,
+                 tied_weights=False,
+                 bias=False):
+        """
+        Denoising Autoencoder
+
+        :param input_dim: original dimensions of input (and output) vector
+        :param bneck_dim: dimensions of bottleneck (learned representation)
+        :param noise: type of noise to apply to input vector
+        :param modifier: noise-specific modifier parameter
+        :param tied_weights: whether to tie the weight matrices
+        :paran bias: whether to add bias nodes to the layers
+
+
+        As introduced in:
+
+        Vincent, P. et al.: Stacked denoising autoencoders: Learning useful
+        representations in a deep network with a local denoising criterion.
+        Journal of machine learning research. 11, 12, (2010).
+        """
+        super().__init__()
+
+        assert noise in [0,1,2], "Unknown type of noise provided"
+        self.noise = noise
+
+        self.modifier = modifier
+        if self.modifier is None:
+            if self.noise == self.NOISE_GAUSSIAN:
+                self.modifier = self.NOISE_GAUSSIAN_ALPHA
+            elif self.noise == self.NOISE_MASKING:
+                self.modifier = self.NOISE_MASKING_PROB
+            elif self.noise == self.NOISE_SALTANDPEPPER:
+                self.modifier = self.NOISE_SALTANDPEPPER_PROB
+
+        self.encoder = self.Encoder(input_dim = input_dim,
+                                    bneck_dim = bneck_dim,
+                                    bias = bias)
+        if tied_weights:
+            self.decoder = self.Decoder(output_dim = input_dim,
+                                        bneck_dim = bneck_dim,
+                                        bias = bias,
+                                        tie_weights_with = self.encoder.W)
+        else:
+            self.decoder = self.Decoder(output_dim = input_dim,
+                                        bneck_dim = bneck_dim,
+                                        bias = bias)
+
+        # initiate weights
+        self.init()
+
+    def forward(self, X):
+        # corrupt copy of original input data
+        X = self.corrupt(X.clone(), self.noise, self.modifier)
+
+        Y = self.encoder(X)
+        Z = self.decoder(Y)
+
+        return Z
+
+    def corrupt(self, X, noise, modifier):
+        if noise == self.NOISE_GAUSSIAN:
+            X += modifier * torch.normal(mean=X.mean(),
+                                         std=X.std(),
+                                         shape=X.shape)
+        elif noise == self.NOISE_MASKING:
+            mask = torch.bernoulli(torch.tensor([modifier] * X.numel()))
+            mask = mask.type(torch.bool).view(X.shape)
+            X[mask] = 0.
+        elif noise == self.NOISE_SALTANDPEPPER:
+            mask = torch.bernoulli(torch.tensor([modifier] * X.numel()))
+            mask = mask.type(torch.bool).view(X.shape)
+            X[mask] = torch.bernoulli(torch.tensor([.5] * mask.sum()))
+
+        return X
+
+    def init(self):
+        for param in self.parameters():
+            nn.init.uniform_(param)
+
+
+    class Encoder(nn.Module):
+        def __init__(self,
+                     input_dim,
+                     bneck_dim,
+                     bias=False):
+
+            super().__init__()
+        
+            # weight matrix
+            self.W = nn.Parameter(torch.empty((input_dim, bneck_dim)))
+
+            self.b = None
+            if bias:
+                self.b = nn.Parameter(torch.empty(bneck_dim))
+        
+            # NB: original paper uses sigmoid
+            self.activation = nn.ReLU(inplace=True)
+
+        def forward(self, X):
+            Y = torch.matmul(X, self.W)
+            if self.b is not None:
+                Y += self.b
+
+            return self.activation(Y)  # bottleneck
+
+        def init(self):
+            for param in self.parameters():
+                nn.init.uniform_(param)
+
+
+    class Decoder(nn.Module):
+        def __init__(self,
+                     bneck_dim,
+                     output_dim,
+                     bias=False,
+                     tie_weights_with=None):
+
+            super().__init__()
+        
+            # weight matrix
+            self.tied_weights = False
+            if tie_weights_with is not None:
+                self.W = tie_weights_with  # encoder weight matrix
+
+                self.tied_weights = True
+            else:
+                self.W = nn.Parameter(torch.empty((bneck_dim, output_dim)))
+
+            self.b = None
+            if bias:
+                self.b = nn.Parameter(torch.empty(output_dim))
+        
+            # NB: original paper uses sigmoid
+            self.activation = nn.ReLU(inplace=True)
+
+        def forward(self, Y):
+            if self.tied_weights:
+                Z = torch.einsum('ij,kj->ik', Y, self.W)  # Y x Wenc^T
+            else:
+                Z = torch.matmul(Y, self.W)
+
+            if self.b is not None:
+                Z += self.b
+
+            return self.activation(Z)  # reconstructed X
+
+        def init(self):
+            for param in self.parameters():
+                nn.init.uniform_(param)
+
 
 
 class ImageCNN(nn.Module):
@@ -646,3 +815,45 @@ class LiteralE(nn.Module):
     def reset_parameters(self):
         for param in self.parameters():
             nn.init.normal_(param)
+
+
+""" Loss functions """
+
+
+class BCEWithLogitsAndClusterLoss(nn.Module):
+    """Binary cross-entropy and cluster loss."""
+    __name__ = 'BCEWithLogitsAndClusterLoss'
+
+    # TODO: add function to adapt value of a to number of epoch or loss
+    # similar to ADAM (first a=1, then gradually reduce to a=0.5)
+
+    def __init__(self, a = 0.5, **kwargs):
+        """
+        param   a: trade off between BCE and cluster loss
+        """
+        super().__init__()
+
+        assert 0. <= a <= 1., "parameter value must be in range [0,1]"
+
+        self.binary_cross_entropy_loss = nn.BCEWithLogitsLoss(**kwargs)
+        self.cluster_loss = self._cluster_loss
+        self.a = a
+
+    def forward(self, inputs, targets, embeddings, a = None):
+        # use global or local parameter
+        a = self.a if a is None else a
+        assert a >= 0. and a <= 1., "parameter value must be in range [0,1]"
+
+        bce_loss, cls_loss = 0., 0.
+        if a > 0.:
+            bce_loss = self.binary_cross_entropy_loss(inputs, targets)
+        if a < 1.:
+            cls_loss = self.cluster_loss(embeddings)
+
+        return a * bce_loss + (1 - a) * cls_loss
+
+    def _cluster_loss(self, embeddings):
+        """
+        Density-based clustering loss
+        """
+        return 0.  # TODO

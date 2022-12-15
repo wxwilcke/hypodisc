@@ -13,8 +13,8 @@ import torch.optim as optim
 from hypodisc.data import dataset
 from hypodisc.data.hdf5 import HDF5
 from hypodisc.data.tsv import TSV
-from hypodisc.models import DistMult, NeuralEncoders
-from hypodisc.utils import (add_noise_, binary_crossentropy, compute_clusters,
+from hypodisc.models import BCEWithLogitsAndClusterLoss, DistMult, NeuralEncoders
+from hypodisc.utils import (add_noise_, compute_clusters,
                             EarlyStop, getConfParam)
 
 
@@ -230,8 +230,17 @@ def train_once(model, optimizer, loss_function, X, E_idx,
                                          (E_batch_idx,
                                          feature_embeddings_dev)]).to('cpu')
 
+        # TODO:
+        # - fuse embeddings if not features
+        # - reduce dimensions via denoising AE (add parameter: k)
+        # - use bottleneck as embedding matrix
+        # see DEC 2016 paper
+        # - use DBSCAN/OPTICS as cluster method?
+        # replace t-SNE with these?
+        entity_embeddings = torch.empty(0, dtype=float)
+
         # compute loss
-        batch_loss = binary_crossentropy(Y_hat, Y, loss_function)
+        batch_loss = loss_function(Y_hat, Y, entity_embeddings)
         loss_lst.append(float(batch_loss))
 
         # Zero gradients, perform a backward pass, and update the weights.
@@ -512,12 +521,14 @@ def main(dataset, output_writer, ranks_writer, devices,
         print("[MODE] DistMult (Featureless)")
         distmult = DistMult(num_nodes=num_nodes,
                             num_relations=num_relations,
+                            embedding_dim=flags.embedding_dim,
                             literalE=False)
     else:
         print("[MODE] DistMult + LiteralE")
         encoders = NeuralEncoders(X, config['encoders'])
         distmult = DistMult(num_nodes=num_nodes,
                             num_relations=num_relations,
+                            embedding_dim=flags.embedding_dim,
                             literalE=True,
                             feature_dim=encoders.out_dim)
 
@@ -546,7 +557,7 @@ def main(dataset, output_writer, ranks_writer, devices,
                                lr=flags.lr,
                                weight_decay=flags.weight_decay)
 
-    loss = nn.BCEWithLogitsLoss()
+    loss = BCEWithLogitsAndClusterLoss()
 
     # load saved model state
     epoch = 1
@@ -602,6 +613,9 @@ if __name__ == "__main__":
                          default=4, type=int)
     parser.add_argument("--decoder_device", help="Device to compute ranks on "
                         + "(e.g., 'cuda:0')", default="cpu", type=str)
+    parser.add_argument("--embedding_dim", help="Length of embedding vectors"
+                        + " (default is number of nodes)",
+                        default=-1, type=int)
     parser.add_argument("--eval_interval", help="Number of epoch between "
                         + "MRR evaluations", default=10, type=int)
     parser.add_argument("--encoder_device", help="Device to learn feature "

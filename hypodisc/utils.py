@@ -128,14 +128,6 @@ def categorical_accuracy(Y_hat, Y_ground):
 
     return num_correct / float(len(Y_ground))
 
-
-def binary_crossentropy(Y_hat, Y, criterion):
-    # Y_hat := output of score()
-    # Y := labels in [0, 1]
-    # Y_hat[i] == Y[i] -> i is same triple
-    return criterion(Y_hat, Y)
-
-
 def global_to_local(data, global_index):
     # remap global indices to local indices of embeddings
     # assume that embeddings are ordered by global_index
