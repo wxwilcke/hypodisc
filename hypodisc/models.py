@@ -257,14 +257,15 @@ class DenoisingAE(nn.Module):
     NOISE_SALTANDPEPPER = 2
 
     NOISE_GAUSSIAN_ALPHA = 0.1
-    NOISE_MASKING_PROB = 0.1
-    NOISE_SALTANDPEPPER_PROB = 0.1
+    NOISE_MASKING_PROB = 0.2
+    NOISE_SALTANDPEPPER_PROB = 0.2
 
     def __init__(self,
                  input_dim,
                  bneck_dim,
                  noise=NOISE_SALTANDPEPPER,
                  modifier=None,
+                 real_valued=True,  # MSE if true else CE loss
                  tied_weights=False,
                  bias=False):
         """
@@ -275,6 +276,7 @@ class DenoisingAE(nn.Module):
         :param noise: type of noise to apply to input vector
         :param modifier: noise-specific modifier parameter
         :param tied_weights: whether to tie the weight matrices
+        :param real_valued: whether the data is real values (in {0,1} if False)
         :paran bias: whether to add bias nodes to the layers
 
 
@@ -300,7 +302,8 @@ class DenoisingAE(nn.Module):
 
         self.encoder = self.Encoder(input_dim = input_dim,
                                     bneck_dim = bneck_dim,
-                                    bias = bias)
+                                    bias = bias,
+                                    real_valued = real_valued)
         if tied_weights:
             self.decoder = self.Decoder(output_dim = input_dim,
                                         bneck_dim = bneck_dim,
@@ -327,7 +330,7 @@ class DenoisingAE(nn.Module):
         if noise == self.NOISE_GAUSSIAN:
             X += modifier * torch.normal(mean=X.mean(),
                                          std=X.std(),
-                                         shape=X.shape)
+                                         size=X.shape)
         elif noise == self.NOISE_MASKING:
             mask = torch.bernoulli(torch.tensor([modifier] * X.numel()))
             mask = mask.type(torch.bool).view(X.shape)
@@ -378,6 +381,7 @@ class DenoisingAE(nn.Module):
         def __init__(self,
                      bneck_dim,
                      output_dim,
+                     real_valued=True,
                      bias=False,
                      tie_weights_with=None):
 
@@ -396,8 +400,11 @@ class DenoisingAE(nn.Module):
             if bias:
                 self.b = nn.Parameter(torch.empty(output_dim))
         
-            # NB: original paper uses sigmoid
-            self.activation = nn.ReLU(inplace=True)
+            self.activation = None
+            if not real_valued:
+                # NB: original paper uses sigmoid
+                # expects binary values + CE loss 
+                self.activation = nn.ReLU(inplace=True)
 
         def forward(self, Y):
             if self.tied_weights:
@@ -408,7 +415,10 @@ class DenoisingAE(nn.Module):
             if self.b is not None:
                 Z += self.b
 
-            return self.activation(Z)  # reconstructed X
+            if self.activation is not None:
+                Z = self.activation(Z)
+
+            return Z  # reconstructed X
 
         def init(self):
             for param in self.parameters():
