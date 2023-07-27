@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hypodisc"
+version = "0.1.0"
+authors = [
+  { name="Xander Wilcke", email="w.x.wilcke@vu.nl" },
+]
+description = "Hypothesis Discovery on RDF Knowledge Graphs"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GLP3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  "pyRDF>=2.1.1",
+  "sparse",
+  "numpy"
+  ]
+keywords = ["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"]
+
+[project.urls]
+"Homepage" = "https://gitlab.com/wxwilcke/hypodisc"
+"Bug Tracker" = "https://gitlab.com/wxwilcke/hypodisc/-/issues"

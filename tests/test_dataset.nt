@@ -1,0 +1,60 @@
+<http://example.org/PersoonsconstractA> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://example.org/PersoonsconstractB> <http://w3.org/nationaliteit> "BE"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractC> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractD> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractE> <http://w3.org/nationaliteit> "BE"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractF> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractG> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractH> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractI> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+<http://example.org/PersoonsconstractJ> <http://w3.org/nationaliteit> "NL"^^<http://www.w3.org/2001/XMLSchema#string> . 
+
+<http://example.org/PersoonsconstractA> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractB> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractC> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractD> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractE> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractF> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractG> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractH> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractI> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+<http://example.org/PersoonsconstractJ> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Personscontract> .
+
+<http://example.org/PersoonsconstractA> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringA> .
+<http://example.org/PersoonsconstractB> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringB> .
+<http://example.org/PersoonsconstractC> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringC> .
+<http://example.org/PersoonsconstractD> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringD> .
+<http://example.org/PersoonsconstractE> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringE> .
+<http://example.org/PersoonsconstractF> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringF> .
+<http://example.org/PersoonsconstractG> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringG> .
+<http://example.org/PersoonsconstractH> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringH> .
+<http://example.org/PersoonsconstractI> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringI> .
+<http://example.org/PersoonsconstractJ> <http://w3.org/aanmonstering> <http://example.org/AanmonsteringJ> .
+
+<http://example.org/AanmonsteringA> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringB> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringC> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringD> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringE> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringF> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringG> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringH> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringI> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+<http://example.org/AanmonsteringJ> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Aanmonstering> .
+
+<http://example.org/AanmonsteringA> <http://w3.org/schip> <http://example.org/SchipA> .
+<http://example.org/AanmonsteringB> <http://w3.org/schip> <http://example.org/SchipA> . 
+<http://example.org/AanmonsteringC> <http://w3.org/schip> <http://example.org/SchipA> . 
+<http://example.org/AanmonsteringD> <http://w3.org/schip> <http://example.org/SchipA> . 
+<http://example.org/AanmonsteringE> <http://w3.org/schip> <http://example.org/SchipA> . 
+<http://example.org/AanmonsteringF> <http://w3.org/schip> <http://example.org/SchipB> . 
+<http://example.org/AanmonsteringG> <http://w3.org/schip> <http://example.org/SchipB> . 
+<http://example.org/AanmonsteringH> <http://w3.org/schip> <http://example.org/SchipB> . 
+<http://example.org/AanmonsteringI> <http://w3.org/schip> <http://example.org/SchipB> . 
+<http://example.org/AanmonsteringJ> <http://w3.org/schip> <http://example.org/SchipB> . 
+
+<http://example.org/SchipA> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
+<http://example.org/SchipB> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
+
+<http://example.org/SchipA> <http://w3.org/naam> "Schip A"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://example.org/SchipB> <http://w3.org/naam> "Schip B"^^<http://www.w3.org/2001/XMLSchema#string> .
