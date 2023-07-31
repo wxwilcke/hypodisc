@@ -1,15 +1,13 @@
 #! /usr/bin/env python
 
 from collections import Counter
-from datetime import datetime
-from random import randint
-from typing import cast
 
-from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import StandardScaler
 import numpy as np
+from hypodisc.langutil import generalize_regex, generate_regex
 from rdf.terms import IRIRef, Literal
 from rdf.namespaces import XSD
+from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import StandardScaler
 
 from hypodisc.timeutils import (cast_datefrag_delta, cast_datefrag_rev, cast_datefrag,
                                 cast_datetime, cast_datetime_delta, cast_datetime_rev)
@@ -239,145 +237,35 @@ def compute_GMM(rng:np.random.Generator, X:np.ndarray, sample:np.ndarray,
     return [bic_min, mu, sigma, assignments]
 
 
-def string_clusters(object_list, strict=True):
-    regex_patterns = list()
+def string_clusters(object_list:np.ndarray, omit_empty:bool = True) -> list:
+    """ Generate clusters of string by infering regex patterns and by
+        generalizing these on similarity.
+
+    :param object_list:
+    :type object_list: np.ndarray
+    :param omit_empty:
+    :type omit_empty: bool
+    :rtype: list
+    """
+    patterns_all = list()
     for s in object_list:
-        regex_patterns.append(generate_regex(s))
-
-    if not strict:
-        return list(generalize_regex(regex_patterns))
-
-    weighted = {k:v**2 for k,v in Counter(regex_patterns).items()}
-
-    wmin = min(weighted.values())
-    wmax = max(weighted.values())
-    if wmin == wmax:
-        return regex_patterns
-
-    weighted_normalized = {k:(v-wmin)/(wmax-wmin) for k,v in weighted.items()}
-
-    return [pattern for pattern in weighted_normalized.keys() if
-            weighted_normalized[pattern] >= NORMALIZED_MIN]
-
-def generalize_regex(patterns):
-    generalized_patterns = set()
-
-    subpattern_list = list()
-    for pattern in patterns:
-        if len(pattern) <= 2:
-            # empty string
+        try:
+            pattern = generate_regex(s)
+            if not (omit_empty and len(pattern) <= 0):
+                patterns_all.append(pattern)
+        except:
             continue
 
-        subpatterns = pattern[1:-1].split('\s')
-        if subpatterns[-1][:-3].endswith('[(\.|\?|!)]'):
-            end = subpatterns[-1][-14:]
-            subpatterns[-1] = subpatterns[-1][:-14]
-            subpatterns.append(end)
+    # save those occurring more than once
+    common_patterns = list()
+    for pattern, freq in Counter(patterns_all).items():
+        if freq > 1:
+            common_patterns.append((pattern, freq))
 
-        for i, subpattern in enumerate(subpatterns):
-            if len(subpattern_list) <= i:
-                subpattern_list.append(dict())
+    # generalize unique patterns
+    for pattern, freq in generalize_regex(patterns_all):
+        # TODO: merge freq above with freq here
+        if freq > 1:
+            common_patterns.append((pattern, freq))
 
-            char_pattern = subpattern[:-3]
-            if char_pattern not in subpattern_list[i].keys():
-                subpattern_list[i][char_pattern] = list()
-            subpattern_list[i][char_pattern].append(int(subpattern[-2:-1]))
-
-    subpattern_cluster_list = list()
-    for i, subpatterns in enumerate(subpattern_list):
-        if len(subpattern_cluster_list) <= i:
-            subpattern_cluster_list.append(dict())
-
-        for subpattern, lengths in subpatterns.items():
-            if subpattern not in subpattern_cluster_list[i].keys():
-                subpattern_cluster_list[i][subpattern] = list()
-
-            if len(lengths) <= 2 or len(set(lengths)) == 1:
-                clusters = [(min(lengths), max(lengths))]
-            else:
-                clusters = [(int(a), int(b)) for a,b in
-                            numeric_clusters(np.array(lengths), acc=0)]
-
-            subpattern_cluster_list[i][subpattern] = clusters
-
-    for pattern in patterns:
-        subpatterns = pattern[1:-1].split('\s')
-        if subpatterns[-1][:-3].endswith('[(\.|\?|!)]'):
-            end = subpatterns[-1][-14:]
-            subpatterns[-1] = subpatterns[-1][:-14]
-            subpatterns.append(end)
-        generalized_patterns |= combine_regex(subpatterns,
-                                              subpattern_cluster_list)
-
-    return generalized_patterns
-
-def combine_regex(subpatterns, subpattern_cluster_list, _pattern='', _i=0):
-    if len(subpatterns) <= 0:
-        return {_pattern+'$'}
-
-    patterns = set()
-    char_pattern = subpatterns[0][:-3]
-    if char_pattern in subpattern_cluster_list[_i].keys():
-        for a,b in subpattern_cluster_list[_i][char_pattern]:
-            if a == b:
-                length = '{' + str(a) + '}'
-            else:
-                length = '{' + str(a) + ',' + str(b) + '}'
-
-            if _i <= 0:
-                pattern = '^' + char_pattern + length
-            elif char_pattern == "[(\.|\?|!)]":
-                pattern = _pattern + char_pattern + length
-            else:
-                pattern = _pattern + '\s' + char_pattern + length
-
-            patterns |= combine_regex(subpatterns[1:], subpattern_cluster_list,
-                                      pattern, _i+1)
-
-    return patterns
-
-def generate_regex(s):
-    s = ' '.join(s.split())
-
-    pattern = '^'
-    if len(s) <= 0:
-        # empty string
-        return pattern + '$'
-
-    prev_char_class = character_class(s[0])
-    count = 0
-    for i in range(len(s)):
-        char_class = character_class(s[i])
-
-        if char_class == prev_char_class:
-            count += 1
-
-            if i < len(s)-1:
-                continue
-
-        pattern += prev_char_class
-        if prev_char_class != "\s":
-            pattern += '{' + str(count) + '}'
-        count = 1
-        if i >= len(s)-1 and char_class != prev_char_class:
-            pattern += char_class
-            if char_class != "\s":
-                pattern += '{' + str(count) + '}'
-
-        prev_char_class = char_class
-
-    return pattern + '$'
-
-def character_class(c):
-    if c.isalpha():
-        char_class = "[a-z]" if c.islower() else "[A-Z]"
-    elif c.isdigit():
-        char_class = "\d"
-    elif c.isspace():
-        char_class = "\s"
-    elif c == "." or c == "?" or c == "!":
-        char_class = "[(\.|\?|!)]"
-    else:
-        char_class = "[^A-Za-z0-9\.\?! ]"
-
-    return char_class
+    return common_patterns

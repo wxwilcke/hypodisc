@@ -8,8 +8,6 @@ from uuid import uuid4
 import numpy as np
 from rdf.terms import IRIRef, Resource
 
-from hypodisc.timeutils import days_to_date
-
 
 class Clause():
     """ Clause class
@@ -387,8 +385,8 @@ class MultiModalDateFragVariable(MultiModalDateTimeVariable):
         """
         # begin and end are in number of days
         super().__init__(resource, begin, end)
-        self.gBegin = days_to_date(begin, resource)
-        self.gEnd = days_to_date(end, resource)
+        self.gBegin = begin
+        self.gEnd = end
 
     def __str__(self):
         return "DateFrag ({},{})".format(str(self.gBegin),
