@@ -100,6 +100,10 @@ if __name__ == "__main__":
     if args.dry_run:
         exit(0)
 
+    # TODO: remove
+    #for c in f.get():
+    #    print(c)
+
 #    print("storing results...", end=" ")
 #    # store clauses
 #    if args.output == "pkl":

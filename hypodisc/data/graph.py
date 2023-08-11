@@ -68,7 +68,7 @@ class KnowledgeGraph():
         facts = (list(), list(), list())
         
         # string datatype
-        xsd_string = IRIRef(XSD + "string")
+        xsd_string = XSD + "string"
 
         n_idx, r_idx = 0, 0
         for s, p, o in g.parse():

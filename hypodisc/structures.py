@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 from __future__ import annotations
-from re import fullmatch
 from typing import Dict, Iterator, List, Optional, Set, Union
 from uuid import uuid4
 
@@ -86,6 +85,7 @@ class Clause():
         """ Return a description of this clause
 
         :returns: a description of this clause
+        :rtype: str
         """
         return "[P:{:0.3f}, Supp:{}, Conf:{}] {} <- {{{}}}".format(
             self.probability,
@@ -98,6 +98,7 @@ class Clause():
         """ Return a technical description of this clause
 
         :returns: a technical description of this clause
+        :rtype: str
         """
 
         return "Clause [{}]".format(str(self))
@@ -125,6 +126,7 @@ class ResourceWrapper(IRIRef):
         """ Return a description of this clause
 
         :returns: a description of this clause
+        :rtype: str
         """
         return "RESOURCE [{}]".format(str(self.value))
 
@@ -132,6 +134,7 @@ class ResourceWrapper(IRIRef):
         """ Return a technical description of this clause
 
         :returns: a technical description of this clause
+        :rtype: str
         """
 
         return "Resource {} [{}]".format(str(id(self)), str(self))
@@ -166,6 +169,7 @@ class TypeVariable(IRIRef):
         """ Return a description of this clause
 
         :returns: a description of this clause
+        :rtype: str
         """
         return "TYPE [{}]".format(str(self.value))
 
@@ -173,6 +177,7 @@ class TypeVariable(IRIRef):
         """ Return a technical description of this clause
 
         :returns: a technical description of this clause
+        :rtype: str
         """
 
         return "TypeVariable {} [{}]".format(str(id(self)),
@@ -197,6 +202,7 @@ class ObjectTypeVariable(TypeVariable):
         """ Return a description of this clause
 
         :returns: a description of this clause
+        :rtype: str
         """
 
         return "OBJECT TYPE [{}]".format(str(self.value))
@@ -205,6 +211,7 @@ class ObjectTypeVariable(TypeVariable):
         """ Return a technical description of this clause
 
         :returns: a technical description of this clause
+        :rtype: str
         """
 
         return "ObjectTypeVariable {} [{}]".format(str(id(self)),
@@ -224,11 +231,21 @@ class DataTypeVariable(TypeVariable):
         :returns: None
         """
         super().__init__(resource)
+        self._uuid = uuid4().hex  # make literals unuque
+
+    #def __eq__(self, other:DataTypeVariable) -> bool:
+    #    return type(self) is type(other)\
+    #            and self.value == other.value\
+    #            and self._uuid == other._uuid
+
+    #def __hash__(self) -> int:
+    #    return hash(self._uuid)
 
     def __str__(self) -> str:
         """ Return a description of this clause
 
         :returns: a description of this clause
+        :rtype: str
         """
 
         return "DATA TYPE ({})".format(str(self.value))
@@ -237,6 +254,7 @@ class DataTypeVariable(TypeVariable):
         """ Return a technical description of this clause
 
         :returns: a technical description of this clause
+        :rtype: str
         """
 
         return "DataTypeVariable [{}]".format(str(self))
@@ -264,6 +282,7 @@ class MultiModalVariable(DataTypeVariable):
         """ Return a description of this clause
 
         :returns: a description of this clause
+        :rtype: str
         """
 
         return "MULTIMODAL [{}]".format(str(self.value))
@@ -272,6 +291,7 @@ class MultiModalVariable(DataTypeVariable):
         """ Return a technical description of this clause
 
         :returns: a technical description of this clause
+        :rtype: str
         """
 
         return "MultiModalVariable [{}]".format(str(self))
@@ -291,27 +311,49 @@ class MultiModalNumericVariable(MultiModalVariable):
         self.mu, self.var = centroid
 
     def __eq__(self, other:MultiModalNumericVariable) -> bool:
+        """ Return true if self and other represent the same
+            datatype, and have the same mean and variance.
+
+        :param other:
+        :type other: MultiModalNumericVariable
+        :rtype: bool
+        """
         return type(self) is type(other)\
                 and self.value is other.value\
                 and self.mu == other.mu\
                 and self.var == other.var
 
     def __lt__(self, other:MultiModalNumericVariable) -> bool:
+        """ Return true if self has a lower mean or variance.
+
+        :param other:
+        :type other: MultiModalNumericVariable
+        :rtype: bool
+        """
         return type(self) is type(other)\
                 and (self.mu < other.mu\
                     or (self.mu == other.mu\
                         and self.var < other.var))
 
     def __str__(self) -> str:
+        """ Return a description of this clause
+
+        :returns: a description of this clause
+        :rtype: str
+        """
         return f"{self.dtype}: {self._nds}({self.mu:.2E}, {self.var:.2E})"
 
     def __repr__(self) -> str:
+        """ Return a technical description of this clause
+
+        :returns: a technical description of this clause
+
+        :rtype: str
+        """
         return "MultiModalVariable {}".format(str(self))
 
 class MultiModalStringVariable(MultiModalVariable):
     """ String Variable class """
-    regex = ""
-
     def __init__(self, resource, regex) -> None:
         """ Initialize and instance of this class
 
@@ -320,24 +362,45 @@ class MultiModalStringVariable(MultiModalVariable):
         super().__init__(resource)
         self.regex = regex
 
-    def contains(self, s:str) -> bool:
-        return fullmatch(self.regex, s) is not None
-
     def __eq__(self, other:MultiModalStringVariable) -> bool:
+        """ Return true if self and other represent the same
+            datatype, and have the same regular expression.
+
+        :param other:
+        :type other: MultiModalStringVariable
+        :rtype: bool
+        """
         # does not account for equivalent regex patterns
         return type(self) is type(other)\
                 and self.value is other.value\
                 and self.regex == other.regex
 
     def __lt__(self, other:MultiModalStringVariable) -> bool:
+        """ Return true if self has a less complex regular expression than
+            other.
+
+        :param other:
+        :type other: MultiModalStringVariable
+        :rtype: bool
+        """
         # this should idealy be that one regex pattern is less constrained than
         # the other.
         return self.regex < other.regex
 
     def __str__(self) -> str:
+        """ Return a description of this clause
+
+        :returns: a description of this clause
+        :rtype: str
+        """
         return f"{self.dtype}: {self.regex}"
 
     def __repr__(self) -> str:
+        """ Return a technical description of this clause
+
+        :returns: a technical description of this clause
+        :rtype: str
+        """
         return "MultiModalVariable {}".format(str(self))
 
 class Assertion(tuple):
@@ -383,6 +446,7 @@ class Assertion(tuple):
 
         :param deep: Copy the UUID and HASH as well
         :returns: a copy of type Assertion
+        :rtype: Assertion
         """
         copy = Assertion(self.lhs, self.predicate, self.rhs)
         if deep:
@@ -394,13 +458,14 @@ class Assertion(tuple):
         """ Pickle elements correctly
 
         :returns: an instance of Assertion
+        :rtype: Assertion
         """
         return Assertion(self.lhs, self.predicate, self.rhs)
 
     def __hash__(self) -> int:
         """ Return unique hash for each assertion, regardless of content.
 
-        :rtype: str
+        :rtype: int
         """
         return hash(self.uuid)
 
@@ -408,6 +473,7 @@ class Assertion(tuple):
         """ Return the string description of this assertion
 
         :returns: a description of this assertion
+        :rtype: str
         """
         return "(" + ', '.join([str(self.lhs),
                                 str(self.predicate),
@@ -417,6 +483,7 @@ class Assertion(tuple):
         """ Compare assertions per element
 
         :returns: true if self < other else false
+        :rtype: str
         """
         for a, b in [(self.lhs, other.lhs),
                      (self.predicate, other.predicate),
@@ -477,6 +544,7 @@ class IdentityAssertion(Assertion):
         :param predicate: the predicate of an assertion
         :param object: the object of an assertion
         :returns: a new instance of IdentityAssertion
+        :rtype: IdentityAssertion
         """
         return super().__new__(cls, subject, predicate, object)
 
@@ -485,6 +553,7 @@ class IdentityAssertion(Assertion):
 
         :param deep: Copy the UUID and HASH as well
         :returns: a copy of type IdentityAssertion
+        :rtype: IdentityAssertion
         """
         copy = IdentityAssertion(self.lhs, self.predicate, self.rhs)
         if deep:
@@ -640,7 +709,7 @@ class GenerationForest():
 
         self._trees[class_iri].update(clauses, depth)
 
-    def get(self, class_iri:Optional[IRIRef],
+    def get(self, class_iri:Optional[IRIRef] = None,
             depth:Optional[int] = None) -> Iterator[Clause]:
         """ Get all clauses from a tree of a certain type
         
@@ -665,6 +734,7 @@ class GenerationForest():
         
         :param class_iri: the class IRI as IRIRef instance
         :returns: an instance of GenerationTree
+        :rtype: GenerationTree
         """
 
         if class_iri not in self._trees.keys():
@@ -715,6 +785,7 @@ class GenerationForest():
         """ Return the number of trees in the forest
 
         :returns: the size of the forest
+        :rtype: int
         """
         return len(self._trees)
 
@@ -722,6 +793,7 @@ class GenerationForest():
         """ Return a description of the forest
 
         :returns: a description of the forest
+        :rtype: str
         """
         return "; ".join({"{} ({})".format(t, str(self.get_tree(t))) for t in self._trees.keys()})
 
@@ -830,6 +902,7 @@ class GenerationTree():
         :param depth: the depth of the tree from which to return the clauses.
             Returns all clauses if depth is None (default).
         :returns: Iterator over clauses
+        :rtype: Iterator[Clause]
         """
         if depth is None:
             if len(self._tree) > 0:
@@ -846,6 +919,7 @@ class GenerationTree():
         """ Return the length of the tree from the roots to the lowest leafs
 
         :returns: the length of the tree
+        :rtype: int
         """
         return self.height
 
@@ -853,5 +927,6 @@ class GenerationTree():
         """ Return a description of the tree
 
         :returns: a description of the tree
+        :rtype: str
         """
         return "{}:{}:{}".format(self.identifier, self.height, self.size)

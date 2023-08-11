@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from random import random, choice
+from random import random
 from time import time
 from multiprocessing import Manager
 from typing import Literal, Optional, Union
@@ -13,11 +13,10 @@ from rdf.terms import IRIRef
 
 from hypodisc.structures import (Assertion, Clause, ClauseBody, ResourceWrapper, TypeVariable,
                                  DataTypeVariable, IdentityAssertion, MultiModalVariable,
-                                 MultiModalDateFragVariable, MultiModalDateTimeVariable,
                                  MultiModalNumericVariable, MultiModalStringVariable,
                                  ObjectTypeVariable, GenerationForest, GenerationTree)
 from hypodisc.multimodal import (compute_clusters, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
-                                 XSD_DATETIME, XSD_NUMERIC, XSD_STRING)
+                                 XSD_DATETIME, XSD_NUMERIC)
 #from hypodisc.utils import cast_xsd
 
 
@@ -204,10 +203,10 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
         duration),
     end="")
 
-    #if npruned > 0:
-    #    print(" ({} pruned)".format(npruned))
-    #else:
-    #    print()
+    if npruned > 0:
+        print(" ({} pruned)".format(npruned))
+    else:
+        print()
 
     return generation_forest
 
@@ -489,20 +488,23 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                 # the case in well-engineered graphs. See this as an
                 # optimization by approximation.
                 o_idx = o_idx_list[0]
+                print(o_idx_list)  # TODO: remove
                 if o_idx in kg.i2d.keys():
                     # object is literal                    
                     o_type = kg.i2d[o_idx]
                     if o_type not in SUPPORTED_XSD_TYPES:
                         continue
 
-                    o_values = [kg.i2n[i] for i in o_idx_list]
+                    o_values = [kg.i2n[i].value for i in o_idx_list]
                     if len(o_values) < min_confidence:
                         # if the full set does not exceed the threshold then nor
                         # will subsets thereof
                         continue
 
-                    clusters = compute_clusters(rng, o_type, o_values)
-                    for freq, cluster in clusters:
+                    clusters = compute_clusters(rng, o_type,
+                                                o_values,
+                                                o_idx_list)
+                    for members, cluster in clusters:
                         if o_type in set.union(XSD_NUMERIC,
                                                XSD_DATETIME,
                                                XSD_DATEFRAG):
@@ -510,9 +512,8 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                         else:  # treat as strings
                             var_o = MultiModalStringVariable(o_type, cluster)
 
-                        phi = new_mmclause(kg, parent, var, var_o, freq,
-                                            class_members_idx, s_idx_list,
-                                            p_idx)
+                        phi = new_mmclause(kg, parent, var, var_o, members,
+                                            class_members_idx, p_idx)
 
                         if phi is not None and phi.confidence >= min_confidence:
                             generation_tree.add(phi, depth=0)
@@ -640,8 +641,8 @@ def new_varclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
 
 def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
                  var_o:Union[ObjectTypeVariable, DataTypeVariable], 
-                 freq:int, class_members_idx:np.ndarray,
-                 s_idx_list:np.ndarray, p_idx:int) -> Clause:
+                 members:set, class_members_idx:np.ndarray,
+                 p_idx:int) -> Clause:
     """ Create a new multimodal clause and compute members and metrics
 
     :param kg:
@@ -651,12 +652,10 @@ def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
     :type var: ObjectTypeVariable
     :param var_o:
     :type var_o: Union[ObjectTypeVariable, DataTypeVariable]
-    :param freq:
-    :type freq: int
+    :param members:
+    :type members: set
     :param class_members_idx:
     :type class_members_idx: np.ndarray
-    :param s_idx_list:
-    :type s_idx_list: np.ndarray
     :param p_idx:
     :type p_idx: int
     :rtype: Clause
@@ -665,7 +664,7 @@ def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
     # indices of members in the domain who satisfy body and/or head
     # assume that all objects linked by the same relation are of the same type
     # this may not always be true but usually it is
-    satisfy_complete = set(class_members_idx[s_idx_list])
+    satisfy_complete = members
     satisfy_body = set(class_members_idx)
 
     # number of members in the domain who satisfy body and/or head

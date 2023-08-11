@@ -597,8 +597,8 @@ class RegexPattern():
         """
         return hash(str(self))
 
-def generalize_patterns(patterns:dict[RegexPattern,int],
-                        num_recursions:int = 1) -> dict[RegexPattern,int]:
+def generalize_patterns(patterns:dict[RegexPattern,set[int]],
+                        num_recursions:int = 1) -> dict[RegexPattern,set[int]]:
     """ Generalize dictionary of regular expressions inplace, by merging
         similar patterns and by aligning quantifiers.
 
@@ -611,28 +611,27 @@ def generalize_patterns(patterns:dict[RegexPattern,int],
     if len(patterns) <= 0:
         return patterns
 
-    generalized_patterns = dict()
+    generalized_patterns = dict()  #type: dict[RegexPattern, set[int]]
     for l in {len(p) for p in patterns.keys()}:
         # pattern with same number of subpatterns
-        subset = {p:f for p,f in patterns.items() if len(p) == l}
-        for p,f in _generalize_patterns_uniform(subset).items():
-            if p in generalized_patterns.keys():
-                # pattern already existed
-                generalized_patterns[p] = generalized_patterns[p] + f
-            else:
-                generalized_patterns[p] = f
+        subset = {p:m for p,m in patterns.items() if len(p) == l}
+        for p, members in _generalize_patterns_uniform(subset).items():
+            if p not in generalized_patterns.keys():
+                generalized_patterns[p] = set()
+
+            generalized_patterns[p] = generalized_patterns[p].union(members)
 
     if num_recursions > 0:
         nrec = num_recursions - 1
-        for p,f in generalize_patterns(generalized_patterns,
-                                       num_recursions = nrec).items():
+        for p, members in generalize_patterns(generalized_patterns,
+                                              num_recursions = nrec).items():
             # don't sum here since that is already done in the called function
-            generalized_patterns[p] = f
+            generalized_patterns[p] = members
 
     return generalized_patterns
 
-def _generalize_patterns_uniform(patterns:dict[RegexPattern,int])\
-        -> dict[RegexPattern,int]:
+def _generalize_patterns_uniform(patterns:dict[RegexPattern,set[int]])\
+        -> dict[RegexPattern,set[int]]:
     """ Generalize patterns of same length by updating quantifiers.
 
     :param patterns:
@@ -665,17 +664,16 @@ def _generalize_patterns_uniform(patterns:dict[RegexPattern,int])\
         nonmatches.append(i)
 
     # merge matching patterns
-    out = dict()
+    out = dict()  #type: dict[RegexPattern, set[int]]
     for match_idx in matches:
         siblings = list(itemgetter(*match_idx)(i2p))
         merged_pattern = _merge_patterns(siblings)
-        freq = sum([patterns[i2p[i]] for i in match_idx])
+        members = set.union(*[patterns[i2p[i]] for i in match_idx])
 
-        if merged_pattern in patterns.keys():
-            # pattern already existed
-            out[merged_pattern] = patterns[merged_pattern] + freq
-        else:
-            out[merged_pattern] = freq
+        if merged_pattern not in patterns.keys():
+            out[merged_pattern] = set()
+
+        out[merged_pattern] = patterns[merged_pattern].union(members)
 
     return out
 
