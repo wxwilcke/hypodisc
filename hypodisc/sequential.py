@@ -12,10 +12,9 @@ from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef
 
 from hypodisc.structures import (Assertion, Clause, ClauseBody, ResourceWrapper, TypeVariable,
-                                 DataTypeVariable, IdentityAssertion,
-                                 #                                 MultiModalVariable,
-                                 #                                 MultiModalDateFragVariable, MultiModalDateTimeVariable,
-                                 #                                 MultiModalNumericVariable, MultiModalStringVariable,
+                                 DataTypeVariable, IdentityAssertion, MultiModalVariable,
+                                 MultiModalDateFragVariable, MultiModalDateTimeVariable,
+                                 MultiModalNumericVariable, MultiModalStringVariable,
                                  ObjectTypeVariable, GenerationForest, GenerationTree)
 from hypodisc.multimodal import (compute_clusters, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
                                  XSD_DATETIME, XSD_NUMERIC, XSD_STRING)
@@ -484,42 +483,39 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                 if phi is not None and phi.confidence >= min_confidence:
                     generation_tree.add(phi, depth=0)
 
+            if multimodal:
+                # assume that all objects linked by the same relation are of
+                # the same type. This may not always be true but it is usually
+                # the case in well-engineered graphs. See this as an
+                # optimization by approximation.
+                o_idx = o_idx_list[0]
+                if o_idx in kg.i2d.keys():
+                    # object is literal                    
+                    o_type = kg.i2d[o_idx]
+                    if o_type not in SUPPORTED_XSD_TYPES:
+                        continue
 
-          #  if multimodal:
-          #      # assume that all objects linked by the same relation are of
-          #      # the same type. This may not always be true but it is usually
-          #      # the case in well-engineered graphs. See this as an
-          #      # optimization by approximation.
-          #      o_idx = o_idx_list[0]
-          #      if o_idx in kg.i2d.keys():
-          #          # object is literal                    
-          #          o_type = kg.i2d[o_idx]
-          #          if o_type not in SUPPORTED_XSD_TYPES:
-          #              continue
+                    o_values = [kg.i2n[i] for i in o_idx_list]
+                    if len(o_values) < min_confidence:
+                        # if the full set does not exceed the threshold then nor
+                        # will subsets thereof
+                        continue
 
-          #          o_values = [kg.i2n[i] for i in o_idx_list]
-          #          if len(o_values) < min_confidence:
-          #              # if the full set does not exceed the threshold then nor
-          #              # will subsets thereof
-          #              continue
+                    clusters = compute_clusters(rng, o_type, o_values)
+                    for freq, cluster in clusters:
+                        if o_type in set.union(XSD_NUMERIC,
+                                               XSD_DATETIME,
+                                               XSD_DATEFRAG):
+                            var_o = MultiModalNumericVariable(o_type, cluster)
+                        else:  # treat as strings
+                            var_o = MultiModalStringVariable(o_type, cluster)
 
-          #          clusters = compute_clusters(rng, o_type, o_values)
-          #          for cluster in clusters:
-          #              if o_type in XSD_NUMERIC:
-          #                  var_o = MultiModalNumericVariable(o_type, cluster)
-          #              elif o_type in XSD_DATETIME:
-          #                  var_o = MultiModalDateTimeVariable(o_type, cluster)
-          #              elif o_type in XSD_DATEFRAG:
-          #                  var_o = MultiModalDateFragVariable(o_type, cluster)
-          #              else:  # treat as strings
-          #                  var_o = MultiModalStringVariable(o_type, cluster)
+                        phi = new_mmclause(kg, parent, var, var_o, freq,
+                                            class_members_idx, s_idx_list,
+                                            p_idx)
 
-          #              phi = new_mmclause(kg, parent, var, var_o,
-          #                                  class_members_idx, s_idx_list,
-          #                                  p_idx)
-
-          #              if phi is not None and phi.confidence >= min_confidence:
-          #                  generation_tree.add(phi, depth=0)
+                        if phi is not None and phi.confidence >= min_confidence:
+                            generation_tree.add(phi, depth=0)
 
         print("done (+{} added)".format(generation_tree.size))
 
@@ -644,7 +640,7 @@ def new_varclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
 
 def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
                  var_o:Union[ObjectTypeVariable, DataTypeVariable], 
-                 class_members_idx:np.ndarray,
+                 freq:int, class_members_idx:np.ndarray,
                  s_idx_list:np.ndarray, p_idx:int) -> Clause:
     """ Create a new multimodal clause and compute members and metrics
 
@@ -655,6 +651,8 @@ def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
     :type var: ObjectTypeVariable
     :param var_o:
     :type var_o: Union[ObjectTypeVariable, DataTypeVariable]
+    :param freq:
+    :type freq: int
     :param class_members_idx:
     :type class_members_idx: np.ndarray
     :param s_idx_list:

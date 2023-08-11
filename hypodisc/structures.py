@@ -5,7 +5,6 @@ from re import fullmatch
 from typing import Dict, Iterator, List, Optional, Set, Union
 from uuid import uuid4
 
-import numpy as np
 from rdf.terms import IRIRef, Resource
 
 
@@ -257,6 +256,10 @@ class MultiModalVariable(DataTypeVariable):
         """
         super().__init__(resource)
 
+        self.dtype = resource.value.split('/')[-1]
+        if '#' in self.dtype:
+            self.dtype = self.dtype.split('#')[-1]
+
     def __str__(self) -> str:
         """ Return a description of this clause
 
@@ -276,33 +279,31 @@ class MultiModalVariable(DataTypeVariable):
 class MultiModalNumericVariable(MultiModalVariable):
     """ Numeric Variable class """
 
+    _nds = chr(0x1D4DD)  # normal distribution symbol
+
     def __init__(self, resource:IRIRef,
-                 min_val:Union[int, float],
-                 max_val:Union[int, float]) -> None:
+                 centroid:tuple[float, float]) -> None:
         """ Initialize and instance of this class
 
         :returns: None
         """
         super().__init__(resource)
-        self.min = min_val
-        self.max = max_val
+        self.mu, self.var = centroid
 
     def __eq__(self, other:MultiModalNumericVariable) -> bool:
         return type(self) is type(other)\
                 and self.value is other.value\
-                and self.min == other.min\
-                and self.max == other.max
+                and self.mu == other.mu\
+                and self.var == other.var
 
     def __lt__(self, other:MultiModalNumericVariable) -> bool:
-        return self.min < other.min\
-                or (self.min == other.min and self.max < other.max)
-
-    def __contains__(self, value:Union[int, float]) -> bool:
-        return value >= self.min and value <= self.max
+        return type(self) is type(other)\
+                and (self.mu < other.mu\
+                    or (self.mu == other.mu\
+                        and self.var < other.var))
 
     def __str__(self) -> str:
-        return "Numeric ({},{})".format(str(self.min),
-                                        str(self.max))
+        return f"{self.dtype}: {self._nds}({self.mu:.2E}, {self.var:.2E})"
 
     def __repr__(self) -> str:
         return "MultiModalVariable {}".format(str(self))
@@ -311,7 +312,7 @@ class MultiModalStringVariable(MultiModalVariable):
     """ String Variable class """
     regex = ""
 
-    def __init__(self, resource, regex):
+    def __init__(self, resource, regex) -> None:
         """ Initialize and instance of this class
 
         :returns: None
@@ -319,80 +320,24 @@ class MultiModalStringVariable(MultiModalVariable):
         super().__init__(resource)
         self.regex = regex
 
-    def __eq__(self, other):
+    def contains(self, s:str) -> bool:
+        return fullmatch(self.regex, s) is not None
+
+    def __eq__(self, other:MultiModalStringVariable) -> bool:
         # does not account for equivalent regex patterns
         return type(self) is type(other)\
                 and self.value is other.value\
                 and self.regex == other.regex
 
-    def __lt__(self, other):
+    def __lt__(self, other:MultiModalStringVariable) -> bool:
         # this should idealy be that one regex pattern is less constrained than
         # the other.
-        return len(self.regex) < len(other.regex)
+        return self.regex < other.regex
 
-    def __contains__(self, value):
-        return fullmatch(self.regex, value) is not None
+    def __str__(self) -> str:
+        return f"{self.dtype}: {self.regex}"
 
-    def __str__(self):
-        return "String ({})".format(self.regex)
-
-    def __repr__(self):
-        return "MultiModalVariable {}".format(str(self))
-
-class MultiModalDateTimeVariable(MultiModalVariable):
-    """ Date Time Variable class """
-    begin = 0.0
-    end = 0.0
-
-    def __init__(self, resource, begin, end):
-        """ Initialize and instance of this class
-
-        :returns: None
-        """
-        super().__init__(resource)
-        self.begin = begin
-        self.end = end
-
-    def __eq__(self, other):
-        return type(self) is type(other)\
-                and self.value is other.value\
-                and self.begin == other.begin\
-                and self.end == other.end
-
-    def __lt__(self, other):
-        return self.begin < other.begin\
-                or (self.begin == other.begin and self.end < other.end)
-
-    def __contains__(self, value):
-        return value >= self.begin and value <= self.end
-
-    def __str__(self):
-        return "DateTime ({},{})".format(str(self.begin),
-                                         str(self.end))
-
-    def __repr__(self):
-        return "MultiModalVariable {}".format(str(self))
-
-class MultiModalDateFragVariable(MultiModalDateTimeVariable):
-    """ Date Fragment Variable class """
-    gBegin = 0
-    gEnd = 0
-
-    def __init__(self, resource, begin, end):
-        """ Initialize and instance of this class
-
-        :returns: None
-        """
-        # begin and end are in number of days
-        super().__init__(resource, begin, end)
-        self.gBegin = begin
-        self.gEnd = end
-
-    def __str__(self):
-        return "DateFrag ({},{})".format(str(self.gBegin),
-                                         str(self.gEnd))
-
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "MultiModalVariable {}".format(str(self))
 
 class Assertion(tuple):

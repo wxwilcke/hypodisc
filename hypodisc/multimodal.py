@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 
 from collections import Counter
+from typing import Any, Union
 
 import numpy as np
-from hypodisc.langutil import generalize_regex, generate_regex
+from hypodisc.langutil import generalize_patterns, generate_regex, RegexPattern
 from rdf.terms import IRIRef, Literal
 from rdf.namespaces import XSD
 from sklearn.mixture import GaussianMixture
@@ -65,47 +66,47 @@ def cast_values(dtype:IRIRef, values:list) -> np.ndarray:
 
     return X[:i]
 
-def cast_values_rev(dtype:IRIRef, clusters:dict) -> list:
+def cast_values_rev(dtype:IRIRef, clusters:dict) -> list[tuple]:
     """ Cast clusters to relevant datatypes
 
     :param dtype:
     :type dtype: IRIRef
     :param clusters:
     :type clusters: dict
-    :rtype: list
+    :rtype: list[tuple]
     """
-    _, freq = np.unique(clusters['assignments'], return_counts=True)
-    
     values = list()
-    for i in range(len(clusters)):
-        mu = clusters['mu'][i]
-        sigma = clusters['sigma'][i]
-        n = freq[i]
+    if dtype in set.union(XSD_NUMERIC, XSD_DATETIME, XSD_DATEFRAG):
+        _, freq = np.unique(clusters['assignments'], return_counts=True)
+        for i in range(len(clusters)):
+            mu = clusters['mu'][i]
+            var = clusters['var'][i]
+            n = freq[i]
 
-        try:
-            if dtype in XSD_NUMERIC:
-                if 'integer' in dtype.value.lower():
-                    mu = int(mu)
-                    sigma = int(sigma)
+            try:
+                if dtype in XSD_NUMERIC:
+                    if 'integer' in dtype.value.lower():
+                        mu = int(mu)
+                        var = int(var)
 
-                values.append((n, mu, sigma))
-            elif dtype in XSD_DATETIME:
-                # POSIX timestamps
-                mu = cast_datetime_rev(dtype, mu)  # returns dtype
-                sigma = cast_datetime_delta(sigma)  # returns duration
+                    values.append((n, (mu, var)))
+                elif dtype in XSD_DATETIME:
+                    # POSIX timestamps
+                    mu = cast_datetime_rev(dtype, mu)  # returns dtype
+                    var = cast_datetime_delta(var)  # returns duration
 
-                values.append((n, mu, sigma))
-            elif dtype in XSD_DATEFRAG:
-                # days
-                mu = cast_datefrag_rev(dtype, mu)  # returns dtype
-                sigma = cast_datefrag_delta(sigma)  # return dayTimeDuration
+                    values.append((n, (mu, var)))
+                elif dtype in XSD_DATEFRAG:
+                    # days
+                    mu = cast_datefrag_rev(dtype, mu)  # returns dtype
+                    var = cast_datefrag_delta(var)  # return dayTimeDuration
 
-                values.append((n, mu, sigma))
-            else:  # default to XSD_STRING
-                pass
-
-        except:
-            continue
+                    values.append((n, (mu, var)))
+            except:
+                continue
+    else:  # default to string
+        for pattern, n in clusters.items():
+            values.append((n, pattern.exact()))
 
     return values
 
@@ -121,20 +122,25 @@ def compute_clusters(rng:np.random.Generator, dtype:IRIRef,
     """
     X = cast_values(dtype, values)
 
-    num_components = range(CLUSTERS_MIN, CLUSTERS_MAX)
     if dtype in set.union(XSD_NUMERIC, XSD_DATETIME, XSD_DATEFRAG):
         X = X.astype(np.float32)
+
+        num_components = range(CLUSTERS_MIN, CLUSTERS_MAX)
         clusters = compute_numeric_clusters(rng, X, num_components)
         values = cast_values_rev(dtype, clusters)
     else:  # default to string
-        clusters = string_clusters(values)
+        X = X.astype(str)
+
+        clusters = string_clusters(X)
+        values = cast_values_rev(dtype, clusters)
 
     return values
 
 def compute_numeric_clusters(rng:np.random.Generator, X:np.ndarray,
                              num_components:range, num_tries:int = 3,
                              eps:float = 1e-3, standardize:bool = True,
-                             shuffle:bool = True) -> dict:
+                             shuffle:bool = True)\
+                                     -> dict[str, Any]:
     """ Compute numerical cluster means and stdevs for a range of possible
         number of components. Also return the cluster assignments.
 
@@ -178,27 +184,26 @@ def compute_numeric_clusters(rng:np.random.Generator, X:np.ndarray,
 
     bic_min = None  # best score
     mu = np.empty(0)
-    sigma = np.empty(0)
+    var = np.empty(0)
     assignments = np.empty(0)
     for nc in num_components:
         bic, means, covs, y = compute_GMM(rng, X, sample, nc, num_tries, eps)
         if bic_min is None or bic + eps < bic_min:
             bic_min = bic
             mu = means
-            sigma = covs
+            var = covs
             assignments = y
 
     if standardize:
         # revert standardization
         mu = scaler.inverse_transform(mu)
-        sigma = scaler.inverse_transform(sigma.squeeze(-1))
+        var = scaler.inverse_transform(var.squeeze(-1))
 
-    sigma = np.sqrt(sigma)  # stdev
-
-    return {'mu':mu, 'sigma':sigma, 'assignments':assignments}
+    return {'mu':mu, 'var':var, 'assignments':assignments}
 
 def compute_GMM(rng:np.random.Generator, X:np.ndarray, sample:np.ndarray,
-                num_components:int, num_tries:int, eps:float) -> list:
+                num_components:int, num_tries:int,
+                eps:float) -> list:
     """ Compute a GMM from different random states and return the best results.
         Train the model on the sample but returns the predictions on X
 
@@ -236,36 +241,60 @@ def compute_GMM(rng:np.random.Generator, X:np.ndarray, sample:np.ndarray,
 
     return [bic_min, mu, sigma, assignments]
 
-
-def string_clusters(object_list:np.ndarray, omit_empty:bool = True) -> list:
+def string_clusters(object_list:np.ndarray, merge_charsets:bool = True,
+                    omit_empty:bool = True) -> dict[RegexPattern,int]:
     """ Generate clusters of string by infering regex patterns and by
         generalizing these on similarity.
 
     :param object_list:
     :type object_list: np.ndarray
+    :param merge_charsets:
+    :type merge_charsets: bool
     :param omit_empty:
     :type omit_empty: bool
-    :rtype: list
+    :rtype: dict[RegexPattern,int]
     """
-    patterns_all = list()
+    patterns = list()
     for s in object_list:
         try:
             pattern = generate_regex(s)
             if not (omit_empty and len(pattern) <= 0):
-                patterns_all.append(pattern)
+                patterns.append(pattern)
         except:
             continue
 
-    # save those occurring more than once
-    common_patterns = list()
-    for pattern, freq in Counter(patterns_all).items():
-        if freq > 1:
-            common_patterns.append((pattern, freq))
+    # count frequency of patterns
+    patterns = dict(Counter(patterns).items())
 
-    # generalize unique patterns
-    for pattern, freq in generalize_regex(patterns_all):
-        # TODO: merge freq above with freq here
-        if freq > 1:
-            common_patterns.append((pattern, freq))
+    # merge character sets on word level and generalize these as well
+    if merge_charsets:
+        merged_patterns = dict()
+        for p,f in patterns.items():
+            q = p.generalize()
+            if p == q:
+                # no further generalization possible
+                continue
 
-    return common_patterns
+            if q in merged_patterns.keys():
+                # generalization can lead to duplicates
+                merged_patterns[q] = merged_patterns[q] + f
+            else:
+                merged_patterns[q] = f
+
+        # update pattern dictionary
+        for p,f in merged_patterns.items():
+            if p in patterns.keys():
+                # sum frequencies if pattern already exists
+                patterns[p] = patterns[p] + f
+            else:
+                patterns[p] = f
+
+    # generalize found patterns
+    for p, f in generalize_patterns(patterns).items():
+        if p in patterns.keys():
+            # sum frequencies if pattern already exists
+            patterns[p] = patterns[p] + f
+        else:
+            patterns[p] = f
+
+    return patterns
