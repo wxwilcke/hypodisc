@@ -140,14 +140,14 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 
                             candidates.append(((a_i, a_j), psi.satisfy_complete))
 
-                    derivatives |= explore(kg = kg,
-                                           phi = phi,
+                    derivatives |= explore(phi = phi,
                                            candidates = candidates,
                                            depth = depth,
                                            max_length = max_length,
                                            max_width = max_width,
                                            min_support = min_support,
                                            min_confidence = min_confidence,
+                                           multiref = kg.i2f,
                                            mode = mode,
                                            prune = prune)
 
@@ -221,14 +221,38 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 #    body.extend(endpoint=a_i, extension=a_j)
 #    return body in U
 
-def explore(kg:KnowledgeGraph, phi:Clause, candidates:list,
+def explore(phi:Clause, candidates:list,
             depth:int, max_length:int, max_width:int,
             min_support:int, min_confidence:int,
+            multiref:dict[int, int],
             mode:Literal["AA", "AT", "TA", "TT",
                          "AB", "BA", "TB", "BT", "BB"],
             prune:bool) -> set:
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
+
+    :param phi:
+    :type phi: Clause
+    :param candidates:
+    :type candidates: list
+    :param depth:
+    :type depth: int
+    :param max_length:
+    :type max_length: int
+    :param max_width:
+    :type max_width: int
+    :param min_support:
+    :type min_support: int
+    :param min_confidence:
+    :type min_confidence: int
+    :param multiref:
+    :type multiref: dict[int, int]
+    :param mode:
+    :type mode: Literal["AA", "AT", "TA", "TT",
+                             "AB", "BA", "TB", "BT", "BB"]
+    :param prune:
+    :type prune: bool
+    :rtype: set
     """
     derivatives = set()  # clauses derived from parent
     seen = set()  # visited clauses
@@ -268,7 +292,7 @@ def explore(kg:KnowledgeGraph, phi:Clause, candidates:list,
                 #    continue
 
                 chi = extend(psi, a_i, a_j, a_j_domain, depth,
-                             min_support, min_confidence)
+                             min_support, min_confidence, multiref)
 
                 if chi is not None:
                     qexplore.put(chi)
@@ -303,10 +327,28 @@ def explore(kg:KnowledgeGraph, phi:Clause, candidates:list,
 
 def extend(psi:Clause, a_i:Assertion, a_j:Assertion, 
            a_j_domain:set, depth:int, min_support:int,
-           min_confidence:int) -> Union[Clause, None]:
+           min_confidence:int, multiref:dict[int, int]) -> Union[Clause, None]:
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
+
+    :param psi:
+    :type psi: Clause
+    :param a_i:
+    :type a_i: Assertion
+    :param a_j:
+    :type a_j: Assertion
+    :param a_j_domain:
+    :type a_j_domain: set
+    :param depth:
+    :type depth: int
+    :param min_support:
+    :type min_support: int
+    :param min_confidence:
+    :type min_confidence: int
+    :param multiref:
+    :type multiref: dict[int, int]
+    :rtype: Union[Clause, None]
     """
 
     # omit if candidate for level 0 is equivalent to head
@@ -328,6 +370,13 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
     # intersection between support of parent and that of extension
     satisfies_body = set.intersection(psi.satisfy_body, a_j_domain)
     support = len(satisfies_body)
+
+    # account for multiple literals with the same value
+    if len(multiref) > 0:
+        o_idx_multiref = satisfies_body.intersection(multiref.keys())
+        for o_idx in o_idx_multiref:
+            support += multiref[o_idx]
+
     if support < min_support:
         return None
 
@@ -335,8 +384,15 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
     # intersection between the confidence of parent and the now reduced domain
     # that is represented by the body.
     satisfies_complete = set.intersection(psi.satisfy_complete,
-                                            satisfies_body)
+                                          satisfies_body)
     confidence = len(satisfies_complete)
+
+    # account for multiple literals with the same value
+    if len(multiref) > 0:
+        o_idx_multiref = satisfies_complete.intersection(multiref.keys())
+        for o_idx in o_idx_multiref:
+            confidence += multiref[o_idx]
+
     if confidence < min_confidence:
         return None
 
@@ -488,7 +544,6 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                 # the case in well-engineered graphs. See this as an
                 # optimization by approximation.
                 o_idx = o_idx_list[0]
-                print(o_idx_list)  # TODO: remove
                 if o_idx in kg.i2d.keys():
                     # object is literal                    
                     o_type = kg.i2d[o_idx]
@@ -513,7 +568,7 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                             var_o = MultiModalStringVariable(o_type, cluster)
 
                         phi = new_mmclause(kg, parent, var, var_o, members,
-                                            class_members_idx, p_idx)
+                                            class_members_idx, p_idx, multimodal)
 
                         if phi is not None and phi.confidence >= min_confidence:
                             generation_tree.add(phi, depth=0)
@@ -642,7 +697,7 @@ def new_varclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
 def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
                  var_o:Union[ObjectTypeVariable, DataTypeVariable], 
                  members:set, class_members_idx:np.ndarray,
-                 p_idx:int) -> Clause:
+                 p_idx:int, multimodal:bool) -> Clause:
     """ Create a new multimodal clause and compute members and metrics
 
     :param kg:
@@ -670,6 +725,16 @@ def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
     # number of members in the domain who satisfy body and/or head
     support = len(satisfy_body)
     confidence = len(satisfy_complete)
+
+    # account for multiple literals with the same value
+    if multimodal and len(kg.i2f) > 0:
+        o_idx_multiref = satisfy_complete.intersection(kg.i2f.keys())
+        for o_idx in o_idx_multiref:
+            confidence += kg.i2f[o_idx]
+
+        o_idx_multiref = satisfy_body.intersection(kg.i2f.keys())
+        for o_idx in o_idx_multiref:
+            support += kg.i2f[o_idx]
 
     # probability that an arbitrary member of the domain satisfies the head
     probability = confidence/support

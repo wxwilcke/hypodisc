@@ -101,8 +101,8 @@ if __name__ == "__main__":
         exit(0)
 
     # TODO: remove
-    #for c in f.get():
-    #    print(c)
+    for c in f.get():
+        print(c)
 
 #    print("storing results...", end=" ")
 #    # store clauses

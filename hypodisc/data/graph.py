@@ -1,7 +1,9 @@
 #! /usr/bin/env python
 
+from __future__ import annotations
 import gzip
 from typing import Optional, List, Union
+from uuid import uuid4
 
 import numpy as np
 
@@ -17,6 +19,15 @@ class KnowledgeGraph():
 
     def __init__(self, rng:np.random.Generator,
                  path:Optional[str] = None) -> None:
+        """ Knowledge Graph stored in vector representation plus query
+            functions
+
+        :param rng:
+        :type rng: np.random.Generator
+        :param path:
+        :type path: Optional[str]
+        :rtype: None
+        """
         self._rng = rng
 
         if path is not None:
@@ -66,6 +77,9 @@ class KnowledgeGraph():
         relations = dict()  # predicates
         datatypes = dict()  # datatype or language tag
         facts = (list(), list(), list())
+
+        # track duplicate literal values for accurate metrics
+        multiref = dict()  # type: dict[int,int]
         
         # string datatype
         xsd_string = XSD + "string"
@@ -91,6 +105,11 @@ class KnowledgeGraph():
 
             if o in nodes.keys():
                 o_idx = nodes[o]
+
+                if o_idx not in multiref.keys():
+                    multiref[o_idx] = 0
+
+                multiref[o_idx] = multiref[o_idx] + 1
             else:
                 o_idx = n_idx
                 nodes[o] = o_idx
@@ -112,13 +131,14 @@ class KnowledgeGraph():
                     # default to string
                     datatypes[o_idx] = xsd_string
 
-        self._parse_vectorize(facts, nodes, relations, datatypes)
+        self._parse_vectorize(facts, nodes, relations, datatypes, multiref)
 
     def _parse_vectorize(self,
                          facts:tuple[List[IRIRef], List[IRIRef], List[IRIRef]],
                          nodes:dict[IRIRef, int], relations:dict[IRIRef, int],
-                         datatypes:dict[int, Union[IRIRef, Literal]]) -> None:
-        """_parse_vectorize.
+                         datatypes:dict[int, Union[IRIRef, Literal]],
+                         multiref:dict[int, int]) -> None:
+        """ Vectorize graph representation.
 
         :param facts:
         :type facts: tuple[List[IRIRef], List[IRIRef], List[IRIRef]]
@@ -128,6 +148,8 @@ class KnowledgeGraph():
         :type relations: dict[IRIRef, int]
         :param datatypes:
         :type datatypes: dict[int, Union[IRIRef, Literal]]
+        :param multiref:
+        :type multiref: dict[int, int]
         :rtype: None
         """
         # statistics
@@ -146,3 +168,4 @@ class KnowledgeGraph():
         self.i2r = np.array(list(self.r2i.keys()))
 
         self.i2d = datatypes
+        self.i2f = multiref  # frequency

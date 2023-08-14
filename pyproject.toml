@@ -20,7 +20,7 @@ classifiers = [
 dependencies = [
   "pyRDF>=2.1.1",
   "sparse",
-  "numpy"
+  "numpy",
   "scikit-learn",
   ]
 keywords = ["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"]
