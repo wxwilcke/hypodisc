@@ -54,6 +54,7 @@ class RegexCharSet():
         for cs in other._charset:
             if cs not in charsets:
                 charsets.append(cs)
+
         charsets = _collapse_charsets(charsets)
         charsets = np.array(charsets, dtype=str)
         count = [[0,0] for _ in range(len(charsets))]
@@ -120,7 +121,7 @@ class RegexCharSet():
         """
         return self.charset() == other.charset()
 
-    def exact_match(self, other:Union['RegexCharAtom', 'RegexCharRange']) -> bool:
+    def weak_match(self, other:Union['RegexCharAtom', 'RegexCharRange']) -> bool:
         """ Return true if self and other have the same reduced character set
             and quantifiers.
 
@@ -128,7 +129,7 @@ class RegexCharSet():
         :type other: Union['RegexCharAtom', 'RegexCharRange']
         :rtype: bool
         """
-        return self.exact() == other.exact()
+        return str(self) == str(other)
 
     def __repr__(self) -> str:
         """ Return a string representation of this object.
@@ -166,7 +167,7 @@ class RegexCharSet():
         :type other: Union['RegexCharAtom', 'RegexCharRange']
         :rtype: bool
         """
-        return hash(self) == hash(other)
+        return self.exact() == other.exact()
 
     def __len__(self) -> int:
         """ Return the shortest string length that would match the character
@@ -202,8 +203,7 @@ class RegexCharSet():
 
         :rtype: int
         """
-        return hash(str(self))
-
+        return hash(self.exact())
 
 class RegexCharAtom(RegexCharSet):
     def __init__(self, charset_str:str) -> None:
@@ -479,6 +479,8 @@ class RegexPattern():
         :rtype: 'RegexPattern'
         """
         p = self.copy()
+        if len(p) <= 1:
+            return p
 
         pattern = list()
         cs_prev = p.pattern[0] if len(self.pattern) > 0 else None
@@ -519,7 +521,7 @@ class RegexPattern():
 
         return p
 
-    def exact_match(self, other:'RegexPattern') -> bool:
+    def weak_match(self, other:'RegexPattern') -> bool:
         """ Return a reduced regular expresion that exactly matches the input,
             but nothing beyond it.
 
@@ -527,7 +529,7 @@ class RegexPattern():
         :type other: 'RegexPattern'
         :rtype: bool
         """
-        return self.exact() == other.exact()
+        return str(self) == str(other)
   
     def equiv(self, other:'RegexPattern') -> bool:
         """ Return true if self has the same full expression as other,
@@ -587,7 +589,7 @@ class RegexPattern():
         :type other: 'RegexPattern'
         :rtype: bool
         """
-        return hash(self) == hash(other)
+        return self.exact() == other.exact()
 
     def __hash__(self) -> int:
         """ Return a hash value based on the full expression, including
@@ -595,7 +597,7 @@ class RegexPattern():
 
         :rtype: int
         """
-        return hash(str(self))
+        return hash(self.exact())
 
 def generalize_patterns(patterns:dict[RegexPattern,set[int]],
                         num_recursions:int = 1) -> dict[RegexPattern,set[int]]:
@@ -671,33 +673,25 @@ def _generalize_patterns_uniform(patterns:dict[RegexPattern,set[int]])\
         members = set.union(*[patterns[i2p[i]] for i in match_idx])
 
         if merged_pattern not in patterns.keys():
-            out[merged_pattern] = set()
+            out[merged_pattern] = members
 
+            continue
+        
         out[merged_pattern] = patterns[merged_pattern].union(members)
 
     return out
 
 def _merge_patterns(patterns:list[RegexPattern]) -> RegexPattern:
-    """ Merge two or more patterns of the same length.
+    """ Merge two or more patterns
 
     :param patterns:
     :type patterns: list[RegexPattern]
     :rtype: RegexPattern
     """
-    counts = np.array([[len(cs) for cs in rp.pattern] 
-                       for rp in patterns])
-
+    num_charsets = len(patterns[0])
     merged_pattern = RegexPattern()
-    for i in range(counts.shape[1]):
-        c = counts[:, i]
-        if (c[:, None] == c).all():
-            # same character set and count
-            cs = patterns[0].pattern[i].copy()
-            merged_pattern.add(cs)
-
-            continue
-
-        # merge character set counts
+    for i in range(num_charsets):
+        # merge character sets
         charsets = [rp.pattern[i] for rp in patterns]
         merged_cs = _merge_charsets(charsets)
         merged_pattern.add(merged_cs)
@@ -884,3 +878,4 @@ def _collapse_charsets(charsets:list[str]) -> list[str]:
             out.append(cs)
 
     return out
+
