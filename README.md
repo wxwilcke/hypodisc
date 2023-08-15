@@ -27,3 +27,7 @@ For any RDF knowledge graph in N-Triple or N-Quad format, run the tool using:
     python hypodisc/run.py --input <KNOWLEDGE_GRAPH> --depth <DEPTH> --min_support <SUPPORT> --min_confidence <CONFIDENCE>
 
 See the `test/` directory for an example.
+
+## Acknowledgements
+
+The development of this tool is funded by the CLARIAH project.

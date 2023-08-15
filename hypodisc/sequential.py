@@ -147,7 +147,6 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                                            max_width = max_width,
                                            min_support = min_support,
                                            min_confidence = min_confidence,
-                                           multiref = kg.i2f,
                                            mode = mode,
                                            prune = prune)
 
@@ -224,7 +223,6 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 def explore(phi:Clause, candidates:list,
             depth:int, max_length:int, max_width:int,
             min_support:int, min_confidence:int,
-            multiref:dict[int, int],
             mode:Literal["AA", "AT", "TA", "TT",
                          "AB", "BA", "TB", "BT", "BB"],
             prune:bool) -> set:
@@ -245,8 +243,6 @@ def explore(phi:Clause, candidates:list,
     :type min_support: int
     :param min_confidence:
     :type min_confidence: int
-    :param multiref:
-    :type multiref: dict[int, int]
     :param mode:
     :type mode: Literal["AA", "AT", "TA", "TT",
                              "AB", "BA", "TB", "BT", "BB"]
@@ -292,7 +288,7 @@ def explore(phi:Clause, candidates:list,
                 #    continue
 
                 chi = extend(psi, a_i, a_j, a_j_domain, depth,
-                             min_support, min_confidence, multiref)
+                             min_support, min_confidence)
 
                 if chi is not None:
                     qexplore.put(chi)
@@ -327,7 +323,7 @@ def explore(phi:Clause, candidates:list,
 
 def extend(psi:Clause, a_i:Assertion, a_j:Assertion, 
            a_j_domain:set, depth:int, min_support:int,
-           min_confidence:int, multiref:dict[int, int]) -> Union[Clause, None]:
+           min_confidence:int) -> Union[Clause, None]:
     """ Extend a clause from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
     and confidence.
@@ -346,8 +342,6 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
     :type min_support: int
     :param min_confidence:
     :type min_confidence: int
-    :param multiref:
-    :type multiref: dict[int, int]
     :rtype: Union[Clause, None]
     """
 
@@ -370,13 +364,6 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
     # intersection between support of parent and that of extension
     satisfies_body = set.intersection(psi.satisfy_body, a_j_domain)
     support = len(satisfies_body)
-
-    # account for multiple literals with the same value
-    if len(multiref) > 0:
-        o_idx_multiref = satisfies_body.intersection(multiref.keys())
-        for o_idx in o_idx_multiref:
-            support += multiref[o_idx]
-
     if support < min_support:
         return None
 
@@ -386,13 +373,6 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
     satisfies_complete = set.intersection(psi.satisfy_complete,
                                           satisfies_body)
     confidence = len(satisfies_complete)
-
-    # account for multiple literals with the same value
-    if len(multiref) > 0:
-        o_idx_multiref = satisfies_complete.intersection(multiref.keys())
-        for o_idx in o_idx_multiref:
-            confidence += multiref[o_idx]
-
     if confidence < min_confidence:
         return None
 
@@ -568,7 +548,7 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                             var_o = MultiModalStringVariable(o_type, cluster)
 
                         phi = new_mmclause(kg, parent, var, var_o, members,
-                                            class_members_idx, p_idx, multimodal)
+                                            class_members_idx, p_idx)
 
                         if phi is not None and phi.confidence >= min_confidence:
                             generation_tree.add(phi, depth=0)
@@ -697,7 +677,7 @@ def new_varclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
 def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
                  var_o:Union[ObjectTypeVariable, DataTypeVariable], 
                  members:set, class_members_idx:np.ndarray,
-                 p_idx:int, multimodal:bool) -> Clause:
+                 p_idx:int) -> Clause:
     """ Create a new multimodal clause and compute members and metrics
 
     :param kg:
@@ -725,16 +705,6 @@ def new_mmclause(kg, parent:Optional[Clause], var:ObjectTypeVariable,
     # number of members in the domain who satisfy body and/or head
     support = len(satisfy_body)
     confidence = len(satisfy_complete)
-
-    # account for multiple literals with the same value
-    if multimodal and len(kg.i2f) > 0:
-        o_idx_multiref = satisfy_complete.intersection(kg.i2f.keys())
-        for o_idx in o_idx_multiref:
-            confidence += kg.i2f[o_idx]
-
-        o_idx_multiref = satisfy_body.intersection(kg.i2f.keys())
-        for o_idx in o_idx_multiref:
-            support += kg.i2f[o_idx]
 
     # probability that an arbitrary member of the domain satisfies the head
     probability = confidence/support

@@ -78,9 +78,6 @@ class KnowledgeGraph():
         datatypes = dict()  # datatype or language tag
         facts = (list(), list(), list())
 
-        # track duplicate literal values for accurate metrics
-        multiref = dict()  # type: dict[int,int]
-        
         # string datatype
         xsd_string = XSD + "string"
 
@@ -103,13 +100,13 @@ class KnowledgeGraph():
 
                 r_idx += 1
 
+            if isinstance(o, Literal):
+                o = UniqueLiteral(o.value,
+                                  o.datatype,
+                                  o.language)
+
             if o in nodes.keys():
                 o_idx = nodes[o]
-
-                if o_idx not in multiref.keys():
-                    multiref[o_idx] = 0
-
-                multiref[o_idx] = multiref[o_idx] + 1
             else:
                 o_idx = n_idx
                 nodes[o] = o_idx
@@ -122,7 +119,7 @@ class KnowledgeGraph():
             facts[2].append(o_idx)            
  
             # save datatype or language tag
-            if isinstance(o, Literal):
+            if isinstance(o, UniqueLiteral):
                 if o.language is not None:
                     datatypes[o_idx] = o.language
                 elif o.datatype is not None:
@@ -131,13 +128,12 @@ class KnowledgeGraph():
                     # default to string
                     datatypes[o_idx] = xsd_string
 
-        self._parse_vectorize(facts, nodes, relations, datatypes, multiref)
+        self._parse_vectorize(facts, nodes, relations, datatypes)
 
     def _parse_vectorize(self,
                          facts:tuple[List[IRIRef], List[IRIRef], List[IRIRef]],
                          nodes:dict[IRIRef, int], relations:dict[IRIRef, int],
-                         datatypes:dict[int, Union[IRIRef, Literal]],
-                         multiref:dict[int, int]) -> None:
+                         datatypes:dict[int, Union[IRIRef, Literal]]) -> None:
         """ Vectorize graph representation.
 
         :param facts:
@@ -148,8 +144,6 @@ class KnowledgeGraph():
         :type relations: dict[IRIRef, int]
         :param datatypes:
         :type datatypes: dict[int, Union[IRIRef, Literal]]
-        :param multiref:
-        :type multiref: dict[int, int]
         :rtype: None
         """
         # statistics
@@ -168,4 +162,19 @@ class KnowledgeGraph():
         self.i2r = np.array(list(self.r2i.keys()))
 
         self.i2d = datatypes
-        self.i2f = multiref  # frequency
+
+
+class UniqueLiteral(Literal):
+    def __init__(self, value:str, datatype:Union[IRIRef,None] = None,
+                 language:Union[str,None] = None) -> None:
+        super().__init__(value = value,
+                         datatype = datatype,
+                         language = language)
+
+        self._uuid = uuid4().hex
+
+    def __eq__(self, other:UniqueLiteral) -> bool:
+        return self._uuid == other._uuid
+
+    def __hash__(self) -> int:
+        return hash(self._uuid)
