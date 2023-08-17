@@ -4,24 +4,21 @@ from sys import maxsize
 from typing import Any
 
 import numpy as np
-from hypodisc.langutil import generalize_patterns, generate_regex, RegexPattern
 from rdf.terms import IRIRef, Literal
 from rdf.namespaces import XSD
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
 
-from hypodisc.timeutils import (cast_datefrag_delta, cast_datefrag_rev, cast_datefrag,
-                                cast_datetime, cast_datetime_delta, cast_datetime_rev)
+from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
+                                           XSD_NUMERIC, XSD_STRING)
+from hypodisc.multimodal.langutil import (generalize_patterns, generate_regex,
+                                          RegexPattern)
+from hypodisc.multimodal.timeutils import (cast_datefrag_delta,
+                                           cast_datefrag_rev, cast_datefrag,
+                                           cast_datetime, cast_datetime_delta,
+                                           cast_datetime_rev)
 
 
-XSD_DATEFRAG = {XSD + 'gDay', XSD + 'gMonth', XSD + 'gMonthDay'}
-XSD_DATETIME = {XSD + 'date', XSD + 'dateTime', XSD + 'dateTimeStamp',
-                XSD + 'gYear', XSD + 'gYearMonth'}
-XSD_NUMERIC = {XSD + 'integer', XSD + 'nonNegativeInteger',
-               XSD + 'positiveInteger', XSD + 'float', XSD + 'decimal',
-               XSD + 'double', XSD + 'negativeInteger',
-               XSD + 'nonPositiveInteger'}
-XSD_STRING = {XSD + 'string', XSD + 'normalizedString'}
 SUPPORTED_XSD_TYPES = set.union(XSD_DATEFRAG,
                                 XSD_DATETIME,
                                 XSD_NUMERIC,

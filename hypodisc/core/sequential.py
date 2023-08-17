@@ -11,13 +11,18 @@ from hypodisc.data.graph import KnowledgeGraph
 from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef
 
-from hypodisc.structures import (Assertion, Clause, ClauseBody, ResourceWrapper, TypeVariable,
-                                 DataTypeVariable, IdentityAssertion, MultiModalVariable,
-                                 MultiModalNumericVariable, MultiModalStringVariable,
-                                 ObjectTypeVariable, GenerationForest, GenerationTree)
-from hypodisc.multimodal import (compute_clusters, SUPPORTED_XSD_TYPES, XSD_DATEFRAG,
-                                 XSD_DATETIME, XSD_NUMERIC)
-#from hypodisc.utils import cast_xsd
+from hypodisc.core.structures import (Assertion, Clause, ClauseBody,
+                                      ResourceWrapper, TypeVariable,
+                                      DataTypeVariable, IdentityAssertion,
+                                      MultiModalVariable,
+                                      MultiModalNumericVariable,
+                                      MultiModalStringVariable,
+                                      ObjectTypeVariable, GenerationForest,
+                                      GenerationTree)
+from hypodisc.multimodal.clustering import (compute_clusters,
+                                            SUPPORTED_XSD_TYPES)
+from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
+                                           XSD_NUMERIC)
 
 
 IGNORE_PREDICATES = {RDF + 'type', RDFS + 'label'}

@@ -8,9 +8,10 @@ from sys import maxsize, exit
 from time import time
 
 from data.graph import KnowledgeGraph
-from sequential import generate
+from core.sequential import generate
 #from ui import _LEFTARROW, _PHI, generate_label_map, pretty_clause
-from utils import floatProbabilityArg, integerRangeArg, read_version, rng_set_seed
+from core.utils import (floatProbabilityArg, integerRangeArg, read_version,
+                        rng_set_seed)
 
 
 PYPROJECTS_PATH = "./pyproject.toml"

@@ -9,8 +9,6 @@ import numpy as np
 from rdf.terms import Literal, IRIRef
 from rdf.namespaces import RDF, RDFS, XSD
 
-from hypodisc.multimodal import XSD_DATEFRAG, XSD_DATETIME, XSD_NUMERIC, XSD_STRING
-
 
 def floatProbabilityArg(arg:str) -> float:
     """ Custom argument type for probability
