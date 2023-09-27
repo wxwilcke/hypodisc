@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import gzip
+from pathlib import Path
 from typing import Optional, List, Union
 from uuid import uuid4
 
@@ -13,57 +14,86 @@ from rdf.namespaces import RDF, XSD
 from rdf.formats import RDF_Serialization_Format
 
 
+# string datatype
+XSD_STRING = XSD + "string"
+
+class UniqueLiteral(Literal):
+    def __init__(self, value:str, datatype:Union[IRIRef,None] = None,
+                 language:Union[str,None] = None) -> None:
+        super().__init__(value = value,
+                         datatype = datatype,
+                         language = language)
+
+        self._uuid = uuid4().hex
+
+    def __eq__(self, other:UniqueLiteral) -> bool:
+        return self._uuid == other._uuid
+
+    def __hash__(self) -> int:
+        return hash(self._uuid)
+
 class KnowledgeGraph():
     """ Knowledge Graph stored in vector representation plus query functions
     """
 
-    def __init__(self, rng:np.random.Generator,
-                 path:Optional[str] = None) -> None:
+    def __init__(self, rng:np.random.Generator) -> None:
         """ Knowledge Graph stored in vector representation plus query
             functions
 
         :param rng:
         :type rng: np.random.Generator
-        :param path:
-        :type path: Optional[str]
         :rtype: None
         """
         self._rng = rng
 
-        if path is not None:
-            self.parse(path)
-
-    def parse(self, path:str) -> None:
+    def parse(self, paths:list[str]) -> None:
         """ Parse graph on file level.
 
         Supports plain or gzipped NTriple or NQuad files
 
         :param path:
-        :type path: str
+        :type path: list[str]
         :rtype: None
         """
-        path_parts = path.split('.')
-        is_gzipped = True if path_parts[-1] == "gz" else False
-        ext = path_parts[-2] if is_gzipped else path_parts[-1]
+        nodes = dict()  # entities, blank nodes, and literals
+        relations = dict()  # predicates
+        datatypes = dict()  # datatype or language tag
+        facts = (list(), list(), list())  # graph by index
 
-        parser = None
-        if ext == "nt":
-            parser = NTriples
-        elif ext == "nq":
-            parser = NQuads
-        else:
-            raise Exception("Supports graphs in NTriples or NQuads format."\
-                            f" Unsupported format: {ext}")
+        n_idx, r_idx = 0, 0
+        for path in paths:
+            parts = path.split('.')
+            is_gzipped = parts[-1] == ".gz"
+            suffix = parts[-1] if not is_gzipped else parts[-2]
 
-        if is_gzipped:
-            with gzip.open(path, mode='r') as gf:
-                with parser(data=gf.read(), mode='r') as g:
-                    self._parse(g)
-        else:
-            with parser(path=path, mode='r') as g:
-                self._parse(g)
+            parser = None
+            if suffix == "nt":
+                parser = NTriples
+            elif suffix == "nq":
+                parser = NQuads
+            else:
+                raise Exception("Supports graphs in NTriples or NQuads format."\
+                                f" Unsupported format: {suffix}")
 
-    def _parse(self, g:RDF_Serialization_Format) -> None:
+            if is_gzipped:
+                with gzip.open(path, mode='r') as gf:
+                    with parser(data=gf.read(), mode='r') as g:
+                        n_idx, r_idx = self._parse(g, (n_idx, r_idx),
+                                                  (nodes, relations,
+                                                   datatypes, facts))
+            else:
+                with parser(path=path, mode='r') as g:
+                    n_idx, r_idx = self._parse(g, (n_idx, r_idx),
+                                              (nodes, relations,
+                                               datatypes, facts))
+
+
+        self._parse_vectorize(facts, nodes, relations, datatypes)
+
+    def _parse(self, g:RDF_Serialization_Format, counters:tuple[int, int],
+               data:tuple[dict, dict, dict,
+                          tuple[list[IRIRef], list[IRIRef], list[IRIRef]]])\
+                       -> tuple[int, int]:
         """ Parse content of graph
 
         Generate indices for nodes, relations, and facts
@@ -73,15 +103,8 @@ class KnowledgeGraph():
         :type g: RDF_Serialization_Format
         :rtype: None
         """
-        nodes = dict()  # entities, blank nodes, and literals
-        relations = dict()  # predicates
-        datatypes = dict()  # datatype or language tag
-        facts = (list(), list(), list())
-
-        # string datatype
-        xsd_string = XSD + "string"
-
-        n_idx, r_idx = 0, 0
+        n_idx, r_idx = counters
+        nodes, relations, datatypes, facts = data
         for s, p, o in g.parse():
             # assign indices to elements
             if s in nodes.keys():
@@ -126,12 +149,12 @@ class KnowledgeGraph():
                     datatypes[o_idx] = o.datatype
                 else:
                     # default to string
-                    datatypes[o_idx] = xsd_string
+                    datatypes[o_idx] = XSD_STRING
 
-        self._parse_vectorize(facts, nodes, relations, datatypes)
+        return n_idx, r_idx
 
     def _parse_vectorize(self,
-                         facts:tuple[List[IRIRef], List[IRIRef], List[IRIRef]],
+                         facts:tuple[list[IRIRef], list[IRIRef], list[IRIRef]],
                          nodes:dict[IRIRef, int], relations:dict[IRIRef, int],
                          datatypes:dict[int, Union[IRIRef, Literal]]) -> None:
         """ Vectorize graph representation.
@@ -164,17 +187,3 @@ class KnowledgeGraph():
         self.i2d = datatypes
 
 
-class UniqueLiteral(Literal):
-    def __init__(self, value:str, datatype:Union[IRIRef,None] = None,
-                 language:Union[str,None] = None) -> None:
-        super().__init__(value = value,
-                         datatype = datatype,
-                         language = language)
-
-        self._uuid = uuid4().hex
-
-    def __eq__(self, other:UniqueLiteral) -> bool:
-        return self._uuid == other._uuid
-
-    def __hash__(self) -> int:
-        return hash(self._uuid)

@@ -1,21 +1,24 @@
 #!/usr/bin/env python
 
 import argparse
-import csv
 import logging
-import pickle
+from os import access, getcwd, R_OK, W_OK
+from os.path import isdir, isfile, splitext
 from sys import maxsize, exit
 from time import time
 
-from data.graph import KnowledgeGraph
 from core.sequential import generate
 #from ui import _LEFTARROW, _PHI, generate_label_map, pretty_clause
 from core.utils import (floatProbabilityArg, integerRangeArg, read_version,
                         rng_set_seed)
+from data.graph import KnowledgeGraph
+from data.utils import mkfile, UnsupportedSerializationFormat
 
 
-PYPROJECTS_PATH = "./pyproject.toml"
+PYPROJECTS_PATH = getcwd() + "/pyproject.toml"
 VERSION = read_version(PYPROJECTS_PATH)
+OUTPUT_NAME = "out"
+OUTPUT_EXT = ".jsonld"
 
 def setup_logger(verbose:bool) -> None:
     """ Setup logger
@@ -39,10 +42,11 @@ if __name__ == "__main__":
                         type=int, required=True)
     parser.add_argument("-c", "--min_confidence", help="Minimal clause"
                         + " confidence", type=int, required=True)
-    parser.add_argument("-o", "--output", help="Preferred output format",
-            choices = ["tsv", "pkl"], default="tsv")
-    parser.add_argument("-i", "--input", help="A knowledge graph in NTriple or"
-                        " NQuad serialization format.", required=True)
+    parser.add_argument("-o", "--output", help="Path to write output to.",
+                        type=str, default=getcwd())
+    parser.add_argument("input", help="One or more knowledge graphs in"
+                        + "(gzipped) NTriple or NQuad serialization format.",
+                        nargs='+')
     parser.add_argument("--max_size", help="Maximum context size",
                         type=int, required=False, default=maxsize)
     parser.add_argument("--max_width", help="Maximum width of shell",
@@ -82,9 +86,30 @@ if __name__ == "__main__":
     # initialize random number generator
     rng = rng_set_seed(args.seed)
 
+    # validate paths 
+    if isdir(args.output):
+        # create new file with default name
+        args.output = mkfile(args.output, OUTPUT_NAME, OUTPUT_EXT)
+    if not args.output.endswith(OUTPUT_EXT):
+        _, ext = splitext(args.output)
+        raise UnsupportedSerializationFormat(f"Specified output path "
+                                            "has unexpected extension: {ext}")
+    for filename in args.input:
+        if not isfile(filename): 
+            raise FileNotFoundError(f"Input path not found: {filename}")
+        if not access(filename, R_OK):
+            raise PermissionError(f"Input path not readable: {filename}")
+
+    f_out = open(args.output, 'w')  # create file on disk
+    if not isfile(args.output):
+        raise FileNotFoundError(f"Output path not found: {args.output}")
+    if not access(args.output, W_OK):
+        raise PermissionError(f"Output path not writable: {args.output}")
+
     # load graph(s)
-    print("importing graph...", end=" ")
-    kg = KnowledgeGraph(rng, args.input)
+    print(f"importing {len(args.input)} graph(s)...", end=" ")
+    kg = KnowledgeGraph(rng)
+    kg.parse(args.input)
     print("done")
 
     # compute clauses

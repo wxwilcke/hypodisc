@@ -78,17 +78,15 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
             print(f" type {class_name}", end=" ")
 
             derivatives = set()  # clauses derived from parents of depth d
-            prune_set = set()
-
             for phi in generation_forest.get_tree(class_name).get(depth):
-                #if depth == 0 and prune and\
-                #   (isinstance(clause.head.rhs, ObjectTypeVariable) or
-                #    isinstance(clause.head.rhs, DataTypeVariable)):
-                #    # assume that predicate range is consistent irrespective of
-                #    # context beyond depth 0
-                #    npruned += 1
+                if depth == 0 and prune and\
+                   (isinstance(phi.head.rhs, ObjectTypeVariable) or
+                    isinstance(phi.head.rhs, DataTypeVariable)):
+                    # assume that predicate range is consistent irrespective of
+                    # context
+                    npruned += 1
 
-                #    continue
+                    continue
 
                 #if depth == 0 and mode[0] != mode[1] and \
                 #   (mode[0] == "A" and isinstance(phi.head.rhs, TypeVariable) or
@@ -151,9 +149,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                                            max_length = max_length,
                                            max_width = max_width,
                                            min_support = min_support,
-                                           min_confidence = min_confidence,
-                                           mode = mode,
-                                           prune = prune)
+                                           min_confidence = min_confidence)
 
                 # clear domain of clause (which we won't need anymore) to save memory
                 #phi.satisfy_body = None
@@ -227,10 +223,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 
 def explore(phi:Clause, candidates:list,
             depth:int, max_length:int, max_width:int,
-            min_support:int, min_confidence:int,
-            mode:Literal["AA", "AT", "TA", "TT",
-                         "AB", "BA", "TB", "BT", "BB"],
-            prune:bool) -> set:
+            min_support:int, min_confidence:int) -> set:
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
 
@@ -248,11 +241,6 @@ def explore(phi:Clause, candidates:list,
     :type min_support: int
     :param min_confidence:
     :type min_confidence: int
-    :param mode:
-    :type mode: Literal["AA", "AT", "TA", "TT",
-                             "AB", "BA", "TB", "BT", "BB"]
-    :param prune:
-    :type prune: bool
     :rtype: set
     """
     derivatives = set()  # clauses derived from parent
@@ -268,25 +256,7 @@ def explore(phi:Clause, candidates:list,
             if len(psi) >= max_length or psi.width() >= max_width:
                 continue
 
-            #if depth+1 in psi.body.distances.keys():
-            #    if len(psi.body.distances[depth+1]) >= max_width:
-            #        continue
-
-            # skip with probability of (1 - p_explore)
-            #skip_endpoint = None
-            #if p_explore < random():
-            #    skip_endpoint = choice(tuple(candidates))
-
             for (a_i, a_j), a_j_domain in candidates:
-                # test identity here as endpoint is same object
-                #if a_j is skip_endpoint:
-                #    continue
-
-                # skip with probability of (1 - p_extend)
-                # place it here as we only want to skip those we are really adding
-                #if p_extend < random():
-                #    continue
-
                 #if visited(seen, psi.body.copy(), a_i, a_j)\
                 #   or covers(psi.body, a_i, a_j)\
                 #   or bad_combo(blacklist, psi.body.copy(), a_i, a_j):
@@ -303,27 +273,6 @@ def explore(phi:Clause, candidates:list,
                 #else:
                 #    blacklist.add((psi.body.copy(), a_i, a_j))
 
-        if len(derivatives) <= 0 or not prune:
-            return derivatives
-
-        # set delayed pruning on siblings if all have same support/confidence
-        # (ie, as it doesn't matter which extension we add, we can assume that none really matter)
-#        qprune = manager.Queue()
-#        qprune.put(phi)
-#        while not qprune.empty():
-#            psi = qprune.get()
-#            scores_set = list()
-#            for chi in psi.children:
-#                scores_set.append((chi.support, chi.confidence))
-#
-#                if len(chi.children) > 0:
-#                    qprune.put(chi)
-#
-#            if len(psi.children) >= 2\
-#               and scores_set.count(scores_set)[0] == len(scores_set):
-#                for chi in psi.children:
-#                    chi._prune = True
-#
     return derivatives
 
 def extend(psi:Clause, a_i:Assertion, a_j:Assertion, 
@@ -372,6 +321,12 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
     if support < min_support:
         return None
 
+    # prune if no reduction in domain of parent
+    # potential children of this clause might be relevant still, but these can
+    # also be discovered via alternate routes, ie abd instead of abcd
+    if support >= psi.support:
+        return None
+
     # compute confidence
     # intersection between the confidence of parent and the now reduced domain
     # that is represented by the body.
@@ -393,10 +348,6 @@ def extend(psi:Clause, a_i:Assertion, a_j:Assertion,
                  support = support,
                  confidence = confidence,
                  probability = probability)
-
-    # set delayed pruning if no reduction in domain
-    #if support >= psi.support:
-    #    chi._prune = True
 
     return chi
 

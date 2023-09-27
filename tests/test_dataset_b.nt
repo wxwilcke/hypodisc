@@ -1,0 +1,16 @@
+<http://example.org/PersoonsconstractA> <http://w3.org/leeftijd> "20"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractB> <http://w3.org/leeftijd> "19"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractC> <http://w3.org/leeftijd> "34"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractD> <http://w3.org/leeftijd> "35"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractE> <http://w3.org/leeftijd> "33"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractF> <http://w3.org/leeftijd> "17"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractG> <http://w3.org/leeftijd> "16"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractH> <http://w3.org/leeftijd> "34"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractI> <http://w3.org/leeftijd> "21"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<http://example.org/PersoonsconstractJ> <http://w3.org/leeftijd> "36"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+
+<http://example.org/SchipA> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
+<http://example.org/SchipB> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
+
+<http://example.org/SchipA> <http://w3.org/naam> "Schip A"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://example.org/SchipB> <http://w3.org/naam> "Schip B"^^<http://www.w3.org/2001/XMLSchema#string> .

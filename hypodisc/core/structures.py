@@ -122,6 +122,10 @@ class ResourceWrapper(IRIRef):
 
         self.type = type
 
+    def __eq__(self, other:ResourceWrapper) -> bool:
+        return self.type == other.type\
+               and self.value == other.value
+
     def __str__(self) -> str:
         """ Return a description of this clause
 
@@ -144,7 +148,8 @@ class TypeVariable(IRIRef):
     """ Type Variable class
 
     An unbound variable which can take on any value of a certain object or
-    data type resource
+    data type resource. Each instance has an unique ID to allow this object to
+    be used as variable shared between assertions.
     """
 
     def __init__(self, resource:IRIRef) -> None:
@@ -154,16 +159,14 @@ class TypeVariable(IRIRef):
         :returns: None
         """
         super().__init__(resource)
+        self._uuid = uuid4().hex
 
-    #def __eq__(self, other):
-    #    return type(self) is type(other)\
-    #            and self.type is other.type
+    def __eq__(self, other:TypeVariable) -> bool:
+        return self._uuid == other._uuid
 
-    #def __lt__(self, other):
-    #    return self.type < other.type
-
-    #def __hash__(self):
-    #    return hash(str(self.__class__.__name__)+str(self.type))
+    def equiv(self, other:TypeVariable) -> bool:
+        return type(self) is type(other)\
+                and self.value == other.value
 
     def __str__(self) -> str:
         """ Return a description of this clause
@@ -231,15 +234,6 @@ class DataTypeVariable(TypeVariable):
         :returns: None
         """
         super().__init__(resource)
-        self._uuid = uuid4().hex  # make literals unuque
-
-    #def __eq__(self, other:DataTypeVariable) -> bool:
-    #    return type(self) is type(other)\
-    #            and self.value == other.value\
-    #            and self._uuid == other._uuid
-
-    #def __hash__(self) -> int:
-    #    return hash(self._uuid)
 
     def __str__(self) -> str:
         """ Return a description of this clause
@@ -278,6 +272,11 @@ class MultiModalVariable(DataTypeVariable):
         if '#' in self.dtype:
             self.dtype = self.dtype.split('#')[-1]
 
+    def equiv(self, other:MultiModalVariable) -> bool:
+        return type(self) is type(other)\
+                and self.value == other.value\
+                and self.dtype == other.dtype
+
     def __str__(self) -> str:
         """ Return a description of this clause
 
@@ -310,7 +309,7 @@ class MultiModalNumericVariable(MultiModalVariable):
         super().__init__(resource)
         self.mu, self.var = centroid
 
-    def __eq__(self, other:MultiModalNumericVariable) -> bool:
+    def equiv(self, other:MultiModalNumericVariable) -> bool:
         """ Return true if self and other represent the same
             datatype, and have the same mean and variance.
 
@@ -319,6 +318,7 @@ class MultiModalNumericVariable(MultiModalVariable):
         :rtype: bool
         """
         return type(self) is type(other)\
+                and self.dtype == other.dtype\
                 and self.value is other.value\
                 and self.mu == other.mu\
                 and self.var == other.var
@@ -362,7 +362,7 @@ class MultiModalStringVariable(MultiModalVariable):
         super().__init__(resource)
         self.regex = regex
 
-    def __eq__(self, other:MultiModalStringVariable) -> bool:
+    def equiv(self, other:MultiModalStringVariable) -> bool:
         """ Return true if self and other represent the same
             datatype, and have the same regular expression.
 
