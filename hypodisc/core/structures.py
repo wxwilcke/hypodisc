@@ -52,6 +52,9 @@ class Clause():
         self.satisfy_body = satisfy_body  # type:set
         self.satisfy_complete = satisfy_complete  # type:set
 
+    def as_query(self) -> str:
+        pass
+
     def __len__(self) -> int:
         """ Length of the clause measures as the number of assertions in the
             body

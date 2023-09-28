@@ -3,7 +3,7 @@
 from pathlib import Path
 
 
-def mkfile(directory:str, basename:str, extension:str) -> str:
+def mkfile(directory:str, basename:str, extension:str) -> Path:
     """ Return path to a new file. Adds numerical suffix if
         the file already exists.
 
@@ -20,7 +20,7 @@ def mkfile(directory:str, basename:str, extension:str) -> str:
 
     out = Path(directory).joinpath(basename).with_suffix(extension)
     if not out.exists():
-        return str(out)
+        return out
 
     suffix = 1
     while out.exists():
@@ -29,7 +29,7 @@ def mkfile(directory:str, basename:str, extension:str) -> str:
 
         suffix += 1
 
-    return str(out)
+    return out
 
 class UnsupportedSerializationFormat(Exception):
     pass

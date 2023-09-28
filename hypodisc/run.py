@@ -3,7 +3,8 @@
 import argparse
 import logging
 from os import access, getcwd, R_OK, W_OK
-from os.path import isdir, isfile, splitext
+from os.path import isdir, isfile
+from pathlib import Path
 from sys import maxsize, exit
 from time import time
 
@@ -12,6 +13,7 @@ from core.sequential import generate
 from core.utils import (floatProbabilityArg, integerRangeArg, read_version,
                         rng_set_seed)
 from data.graph import KnowledgeGraph
+from data.json import JSONStreamer, write_context, write_metadata
 from data.utils import mkfile, UnsupportedSerializationFormat
 
 
@@ -87,24 +89,35 @@ if __name__ == "__main__":
     rng = rng_set_seed(args.seed)
 
     # validate paths 
-    if isdir(args.output):
-        # create new file with default name
-        args.output = mkfile(args.output, OUTPUT_NAME, OUTPUT_EXT)
-    if not args.output.endswith(OUTPUT_EXT):
-        _, ext = splitext(args.output)
-        raise UnsupportedSerializationFormat(f"Specified output path "
-                                            "has unexpected extension: {ext}")
     for filename in args.input:
         if not isfile(filename): 
             raise FileNotFoundError(f"Input path not found: {filename}")
         if not access(filename, R_OK):
             raise PermissionError(f"Input path not readable: {filename}")
+ 
+    # validate paths 
+    if not args.dry_run:
+        if isdir(args.output):
+            # create new file with default name
+            output_path = mkfile(args.output, OUTPUT_NAME, OUTPUT_EXT)
+        else:
+            output_path = Path(args.output)
+ 
+        if output_path.suffix != OUTPUT_EXT:
+            raise UnsupportedSerializationFormat("Specified output path "
+                                                "has unexpected extension: "
+                                                 f"{args.ouput.suffix}")
+        f_out = JSONStreamer(output_path)
+        if not isfile(f_out.filename):
+            raise FileNotFoundError(f"Output path not found: {args.output}")
+        if not access(f_out.filename, W_OK):
+            raise PermissionError(f"Output path not writable: {args.output}")
 
-    f_out = open(args.output, 'w')  # create file on disk
-    if not isfile(args.output):
-        raise FileNotFoundError(f"Output path not found: {args.output}")
-    if not access(args.output, W_OK):
-        raise PermissionError(f"Output path not writable: {args.output}")
+        # write context to output
+        write_context(f_out, output_path)
+
+        # write metadata to output
+        write_metadata(f_out, vars(args))
 
     # load graph(s)
     print(f"importing {len(args.input)} graph(s)...", end=" ")

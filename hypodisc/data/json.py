@@ -1,14 +1,74 @@
 #!/usr/bin/env python
 
 from __future__ import annotations
+from datetime import datetime
 from enum import Enum
+from getpass import getuser
 from numbers import Number
 from io import TextIOWrapper
 from pathlib import Path
+from os.path import basename
 from typing import Any, Self, Union
 
 
-INDENT_SPACES = 2
+CONTEXT = { "@version": 1.1,
+            "dct": "http://purl.org/dc/terms/",
+            "prov": "http://www.w3.org/ns/prov#",
+            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+            "xsd": "http://www.w3.org/2001/XMLSchema#",
+        }
+
+METADATA = { "@id": "",
+             "@type": "dct:Dataset",
+             "dct:format": { 
+                    "@id": ("https://www.iana.org/assignments/media-types/"
+                            "application/ld+json"),
+                    "@type": "dct:MediaType" }, 
+             "dct:description": ("A collection of SPARQL queries generated "
+                                 "automatically by HypoDisc: a tool, funded "
+                                 "by CLARIAH and developed by the DataLegend "
+                                 "team (Xander Wilcke, Richard Zijdeman, Rick "
+                                 "Mourits, Auke Rijpma, and Sytze van Herck), "
+                                 "that can discover novel and "
+                                 "potentially-interesting graph patterns "
+                                 "in multimodal knowledge graphs which can be "
+                                 "used by experts and scholars to form new "
+                                 "research hypotheses, to support existing "
+                                 "ones, or to gain insight into their data."),
+             "rdfs:label": "A collection of SPARQL queries",
+             "prov:wasGeneratedBy": {"@id": "base:HypothesisDiscovery"},
+             "base:HypothesisDiscovery": {
+                 "@type": "prov:Activity",
+                 "prov:used": { "@id": "https://gitlab.com/wxwilcke/hypodisc",
+                                "@type": "dct:Software" },
+                 "prov:wasStartedBy": f"{getuser().title()}",
+                 "prov:startedAtTime": f"{datetime.isoformat(datetime.now())}"
+                 }
+            }
+
+def write_context(j:JSONStreamer, path:Path, update:dict = {}) -> None:
+    context = { k:v for k,v in CONTEXT.items() }
+    context.update(update)
+
+    context["@base"] = path.absolute().as_uri()
+    context["base"] = path.absolute().as_uri()
+
+    j.write_dict("@context", context)
+
+def write_metadata(j:JSONStreamer, parameters:dict[str,Any],\
+        update:dict = {}) -> None:
+    metadata = { k:v for k,v in METADATA.items() }
+    metadata.update(update)
+
+    source = [basename(path) for path in parameters['input']]
+    metadata['base:HypothesisDiscovery'].update({
+        "prov:hadPrimarySource": source if len(source) > 1 else source.pop() })
+
+    for k,v in metadata.items():
+        j.write_key_value(k, v)
+
+def write_query(j:JSONStreamer, query:str, name:str) -> None:
+    pass
 
 class JSONStreamer():
     class DataStructures(Enum):
@@ -16,15 +76,21 @@ class JSONStreamer():
         DICT = 1
 
 
-    def __init__(self, path:Union[str, Path]) -> None:
+    def __init__(self, path:Union[str, Path], indent_spaces:int = 2) -> None:
         """ A Lightweight JSON Streamer
 
         :param path:
         :type path: Union[str, Path]
+        :param indent_spaces:
+        :type indent_spaces: int
         :rtype: None
         """
         self._indent_level = list()
         self._indent_count = list()
+        self._indent_spaces = indent_spaces
+
+        path = Path(path)
+
         self.open(path)
 
     def __enter__(self) -> Self:
@@ -34,16 +100,17 @@ class JSONStreamer():
             -> None:
         self.close()
 
-    def open(self, path:Union[str, Path]) -> None:
+    def open(self, path:Path) -> None:
         """ Open new JSON file
 
         :param path:
-        :type path: Union[str, Path]
+        :type path: Path
         :rtype: None
         """
+        self.filename = path.absolute()
         self._file = TextIOWrapper(open(path, 'wb'),
                                    line_buffering = True)
-        self.indent_in(JSONStreamer.DataStructures.DICT)
+        self._indent_in(JSONStreamer.DataStructures.DICT)
 
     def close(self) -> None:
         """ Close current JSON file
@@ -51,11 +118,11 @@ class JSONStreamer():
         :rtype: None
         """
         for _ in reversed(self._indent_level):
-            self.indent_out()
+            self._indent_out()
 
         self._file.close()
 
-    def indent_in(self, struc:JSONStreamer.DataStructures,
+    def _indent_in(self, struc:JSONStreamer.DataStructures,
                   inline:bool = False) -> None:
         """ Insert new indentation level and move to that level.
 
@@ -74,13 +141,13 @@ class JSONStreamer():
 
         num_spaces = 0
         if not inline:
-            num_spaces = len(self._indent_level) * INDENT_SPACES
+            num_spaces = len(self._indent_level) * self._indent_spaces
 
         self._file.write(' ' * num_spaces + f"{char}")
         self._indent_level.append(struc)
         self._indent_count.append(0)
         
-    def indent_out(self) -> None:
+    def _indent_out(self) -> None:
         """ Close current indentation level and return to previous one.
 
         :rtype: None
@@ -90,7 +157,7 @@ class JSONStreamer():
 
         del self._indent_count[-1]
         struc = self._indent_level.pop()
-        num_spaces = len(self._indent_level) * INDENT_SPACES
+        num_spaces = len(self._indent_level) * self._indent_spaces
         if struc == JSONStreamer.DataStructures.LIST:
             char = ']'
         elif struc == JSONStreamer.DataStructures.DICT:
@@ -147,16 +214,16 @@ class JSONStreamer():
         :type inline: bool
         :rtype: None
         """
-        num_spaces = len(self._indent_level) * INDENT_SPACES
+        num_spaces = len(self._indent_level) * self._indent_spaces
         if key is not None:
             self._file.write(pre + ' ' * num_spaces + f"\"{key}\": ")
         elif not inline:
             self._file.write(pre + ' ' * num_spaces)
 
         self._indent_count[-1] += 1
-        self.indent_in(JSONStreamer.DataStructures.LIST,
-                       inline = True)
-        num_spaces = len(self._indent_level) * INDENT_SPACES
+        self._indent_in(JSONStreamer.DataStructures.LIST,
+                        inline = True)
+        num_spaces = len(self._indent_level) * self._indent_spaces
         for v in values:
             pre = ",\n" if self._indent_count[-1] > 0 else '\n'
             self._indent_count[-1] += 1
@@ -169,7 +236,7 @@ class JSONStreamer():
                 v = self.cast(v)
                 self._file.write(pre + ' ' * num_spaces + f"{v}")
 
-        self.indent_out()
+        self._indent_out()
 
     def _write_dict(self, key:Union[str, None], values:dict,
                     pre:str = '\n', inline:bool = False) -> None:
@@ -185,16 +252,16 @@ class JSONStreamer():
         :type inline: bool
         :rtype: None
         """
-        num_spaces = len(self._indent_level) * INDENT_SPACES
+        num_spaces = len(self._indent_level) * self._indent_spaces
         if key is not None:
             self._file.write(pre + ' ' * num_spaces + f"\"{key}\": ")
         elif not inline:
             self._file.write(pre + ' ' * num_spaces)
 
         self._indent_count[-1] += 1
-        self.indent_in(JSONStreamer.DataStructures.DICT,
-                       inline = True)
-        num_spaces = len(self._indent_level) * INDENT_SPACES
+        self._indent_in(JSONStreamer.DataStructures.DICT,
+                        inline = True)
+        num_spaces = len(self._indent_level) * self._indent_spaces
         for k, v in values.items():
             pre = ",\n" if self._indent_count[-1] > 0 else '\n'
             self._indent_count[-1] += 1
@@ -208,7 +275,7 @@ class JSONStreamer():
                 v = self.cast(v)
                 self._file.write(f"{v}")
 
-        self.indent_out()
+        self._indent_out()
 
     def write_key_value(self, key:str, value:Any) -> None:
         """ Write a key-value pair to output.
@@ -222,7 +289,7 @@ class JSONStreamer():
         pre = ",\n" if self._indent_count[-1] > 0 else '\n'
         self._indent_count[-1] += 1
         
-        num_spaces = len(self._indent_level) * INDENT_SPACES
+        num_spaces = len(self._indent_level) * self._indent_spaces
         self._file.write(pre + ' ' * num_spaces + f"\"{key}\": ")
         if type(value) is dict:
             self._write_dict(None, value, inline = True)
