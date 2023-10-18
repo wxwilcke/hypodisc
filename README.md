@@ -33,6 +33,43 @@ To install this tool you will need the [git version control system](https://git-
 
 Hypodisc is now installed and ready to use.
 
+## Usage 
+
+    usage: HypoDisc [-h] -d DEPTH -s MIN_SUPPORT [-o OUTPUT] [--max_size MAX_SIZE] [--max_width MAX_WIDTH] [--mode {A,T,AT,TA}] [--multimodal] [--p_explore P_EXPLORE] [--p_extend P_EXTEND] [--dry_run] [--seed SEED] [--verbose] [--version] input [input ...]
+    
+    positional arguments:
+      input                 One or more knowledge graphs in (gzipped) NTriple or NQuad serialization format.
+    
+    options:
+      -h, --help            
+                            show this help message and exit
+      -d DEPTH, --depth DEPTH
+                            Depths to explore. Takes a range 'from:to', or a shorthand ':to' or 'to' if all depths up to that point are to be considered.
+      -s MIN_SUPPORT, --min_support MIN_SUPPORT
+                            Minimal pattern support.
+      -o OUTPUT, --output OUTPUT
+                            Path to write output to (defaults to current directory)
+      --max_size MAX_SIZE   
+                            Maximum context size (defaults to inf.)
+      --max_width MAX_WIDTH
+                            Maximum width of shell (defaults to inf.)
+      --mode {A,T,AT}    
+                            A[box], T[box], or both as candidates to be included in the pattern (defaults to AT)
+      --multimodal          
+                            Enable multimodal support (defaults to True)
+      --p_explore P_EXPLORE
+                            Probability of exploring candidate endpoint (defaults to 1.0)
+      --p_extend P_EXTEND   
+                            Probability of extending at candidate endpoint (defaults to 1.0)
+      --dry_run             
+                            Dry run without saving results (defaults to False)
+      --seed SEED           
+                            Set the seed for the random number generator (default to current time)
+      --verbose, -v         
+                            Print debug messages and warnings
+      --version             
+                            show program's version number and exit
+
 ## Walkthrough
 
 For any RDF knowledge graph in N-Triple or N-Quad format, run the tool using:
