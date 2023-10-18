@@ -37,7 +37,7 @@ Hypodisc is now installed and ready to use.
 
 For any RDF knowledge graph in N-Triple or N-Quad format, run the tool using:
 
-    python hypodisc/run.py --input <KNOWLEDGE_GRAPH> --depth <DEPTH> --min_support <SUPPORT> --min_confidence <CONFIDENCE>
+    python hypodisc/run.py --depth <DEPTH> --min_support <SUPPORT>  [<KNOWLEDGE_GRAPH>, ...]  
 
 See the `test/` directory for an example.
 

@@ -5,10 +5,23 @@ from typing import Optional
 import random
 
 import numpy as np
+from hypodisc.core.structures import Assertion, GraphPattern, Variable
 
 from rdf.terms import Literal, IRIRef
 from rdf.namespaces import RDF, RDFS, XSD
 
+
+def predict_hash(pattern:GraphPattern, endpoint:Variable,
+                 extension:Assertion) -> int:
+    connections = {Assertion(endpoint,
+                             extension.predicate,
+                             extension.rhs)}
+    connections.update(pattern.connections.keys())
+
+    return hash("{"
+                + "; ".join([str(assertion)
+                             for assertion in sorted(connections)])
+                + "}")
 
 def floatProbabilityArg(arg:str) -> float:
     """ Custom argument type for probability

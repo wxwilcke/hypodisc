@@ -9,7 +9,6 @@ from sys import maxsize, exit
 from time import time
 
 from core.sequential import generate
-#from ui import _LEFTARROW, _PHI, generate_label_map, pretty_clause
 from core.utils import (floatProbabilityArg, integerRangeArg, read_version,
                         rng_set_seed)
 from data.graph import KnowledgeGraph
@@ -42,8 +41,6 @@ if __name__ == "__main__":
                         type=integerRangeArg, required=True)
     parser.add_argument("-s", "--min_support", help="Minimal clause support.",
                         type=int, required=True)
-    parser.add_argument("-c", "--min_confidence", help="Minimal clause"
-                        + " confidence", type=int, required=True)
     parser.add_argument("-o", "--output", help="Path to write output to.",
                         type=str, default=getcwd())
     parser.add_argument("input", help="One or more knowledge graphs in"
@@ -53,10 +50,10 @@ if __name__ == "__main__":
                         type=int, required=False, default=maxsize)
     parser.add_argument("--max_width", help="Maximum width of shell",
                         type=int, required=False, default=maxsize)
-    parser.add_argument("--mode", help="A[box], T[box], or B[oth] as"
-                        + " candidates for head and body", choices = ["AA",
-                        "AT", "TA", "TT", "AB", "BA", "TB", "BT", "BB"],
-                        type=str, default="BB")
+    parser.add_argument("--mode", help="A[box], T[box], or both as"
+                        + " candidates to be included in the pattern",
+                        choices = ["A", "T", "AT", "TA"],
+                        type=str, default="AT")
     parser.add_argument("--multimodal", help="Enable multimodal support",
                         required=False, action='store_true')
     parser.add_argument("--p_explore", help="Probability of exploring "
@@ -65,9 +62,6 @@ if __name__ == "__main__":
     parser.add_argument("--p_extend", help="Probability of extending at "
                         + "candidate endpoint.", type=floatProbabilityArg,
                         required=False, default=1.0)
-    parser.add_argument("--prune", help="Whether to prune the result."
-                        + " Defaults to true.", type=bool, required=False,
-                        default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument("--dry_run", help="Dry run without saving results.",
                         required=False, action="store_true")
     parser.add_argument("--seed", help="Set the seed for the random number "
@@ -87,6 +81,10 @@ if __name__ == "__main__":
 
     # initialize random number generator
     rng = rng_set_seed(args.seed)
+
+    if args.min_support <= 1:
+        raise Warning("A minimal support less than or equal to 1 is unlikely "
+                      "to yield interesting patterns (if any).")
 
     # validate paths 
     for filename in args.input:
@@ -128,10 +126,9 @@ if __name__ == "__main__":
     # compute clauses
     f = generate(rng = rng, kg = kg, depths = args.depth,
                  min_support = args.min_support,
-                 min_confidence = args.min_confidence,
                  p_explore = args.p_explore,
                  p_extend = args.p_extend,
-                 prune = args.prune, mode = args.mode,
+                 mode = args.mode,
                  max_length = args.max_size,
                  max_width = args.max_width,
                  multimodal = args.multimodal)

@@ -50,5 +50,5 @@
 <http://example.org/AanmonsteringF> <http://w3.org/schip> <http://example.org/SchipB> . 
 <http://example.org/AanmonsteringG> <http://w3.org/schip> <http://example.org/SchipB> . 
 <http://example.org/AanmonsteringH> <http://w3.org/schip> <http://example.org/SchipB> . 
-<http://example.org/AanmonsteringI> <http://w3.org/schip> <http://example.org/SchipB> . 
-<http://example.org/AanmonsteringJ> <http://w3.org/schip> <http://example.org/SchipB> . 
+<http://example.org/AanmonsteringI> <http://w3.org/schip> <http://example.org/SchipC> . 
+<http://example.org/AanmonsteringJ> <http://w3.org/schip> <http://example.org/SchipC> . 

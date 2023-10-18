@@ -11,6 +11,8 @@
 
 <http://example.org/SchipA> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
 <http://example.org/SchipB> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
+<http://example.org/SchipC> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Schip> .
 
 <http://example.org/SchipA> <http://w3.org/naam> "Schip A"^^<http://www.w3.org/2001/XMLSchema#string> .
 <http://example.org/SchipB> <http://w3.org/naam> "Schip B"^^<http://www.w3.org/2001/XMLSchema#string> .
+<http://example.org/SchipC> <http://w3.org/naam> "Schip C"^^<http://www.w3.org/2001/XMLSchema#string> .
