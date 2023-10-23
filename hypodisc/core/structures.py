@@ -261,6 +261,60 @@ class GraphPattern():
 
         return False
 
+    def as_query(self, varnames:Optional[list] = None) -> str:
+        q = ''
+        # TODO: prefixes
+        # TODO: object,datatype vars
+
+        if varnames is None:
+            varnames = ['u', 'v', 'w', 'x', 'y', 'z']
+        varnames.reverse()  # we want to pop in order
+
+        q += "SELECT ?s\n"
+        q += "WHERE {\n"
+
+        bindings = dict()
+        postpone = dict()
+        for d in self.distances.keys():
+            for a in self.distances[d]:
+                if isinstance(a.rhs, ObjectTypeVariable):
+                    if a.rhs not in bindings.keys():
+                        bindings[a.rhs] = varnames.pop()
+                        postpone[a.rhs] = True
+
+                q += '\t'
+                if d == 0:
+                    q += "?s"
+                else:
+                    if a.lhs in bindings.keys():  # ObjectTypeVariable
+                        if a.lhs in postpone.keys():
+                            q += ( f"?{bindings[a.lhs]} rdf:type "
+                                   f"<{a.lhs.value}> .\n\t" )
+                            postpone[a.lhs] = False
+
+                        q += f"?{bindings[a.lhs]}"
+                    else:
+                        q += f"{a.lhs}"
+
+                q += f" <{a.predicate}> "
+        
+                if a.rhs in bindings.keys():  # ObjectTypeVariable
+                    q += f"?{bindings[a.rhs]}"
+                else:
+                    q += f"{a.rhs}"
+
+                q += ' .\n'
+
+        for otype in postpone.keys():
+            if postpone[otype]:
+                q += ( f"\t?{bindings[otype]} rdf:type "
+                       f"<{otype.value}> .\n\t" )
+                postpone[otype] = False
+
+        q += "}"
+
+        return q
+
     def __repr__(self) -> str:
         """ Return an internal string representation
 

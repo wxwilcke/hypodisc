@@ -12,7 +12,7 @@ from core.sequential import generate
 from core.utils import (floatProbabilityArg, integerRangeArg, read_version,
                         rng_set_seed)
 from data.graph import KnowledgeGraph
-from data.json import JSONStreamer, write_context, write_metadata
+from data.json import JSONStreamer, write_context, write_metadata, write_query
 from data.utils import mkfile, UnsupportedSerializationFormat
 
 
@@ -39,11 +39,11 @@ if __name__ == "__main__":
                         + "range 'from:to', or a shorthand ':to' or 'to' if "
                         + "all depths up to that point are to be considered.",
                         type=integerRangeArg, required=True)
-    parser.add_argument("-s", "--min_support", help="Minimal clause support.",
+    parser.add_argument("-s", "--min_support", help="Minimal pattern support.",
                         type=int, required=True)
     parser.add_argument("-o", "--output", help="Path to write output to.",
                         type=str, default=getcwd())
-    parser.add_argument("input", help="One or more knowledge graphs in"
+    parser.add_argument("input", help="One or more knowledge graphs in " 
                         + "(gzipped) NTriple or NQuad serialization format.",
                         nargs='+')
     parser.add_argument("--max_size", help="Maximum context size",
@@ -137,31 +137,8 @@ if __name__ == "__main__":
         exit(0)
 
     # TODO: remove
-    for c in f.get():
-        print(c)
+    for i,c in enumerate(f.get()):
+        write_query(f_out, c, f"query_{i}")
 
-#    print("storing results...", end=" ")
-#    # store clauses
-#    if args.output == "pkl":
-#        pickle.dump(f, open("./generation_forest(d{}s{}c{})_{}.pkl".format(str(args.depth)[5:],
-#                                                                           str(args.min_support),
-#                                                                           str(args.min_confidence),
-#                                                                           timestamp), "wb"))
-#    else:
-#        ns_dict = {v:k for k,v in g.namespaces()}
-#        label_dict = generate_label_map(g)
-#        with open("./generation_forest(d{}s{}c{})_{}.tsv".format(str(args.depth)[5:],
-#                                                                 str(args.min_support),
-#                                                                 str(args.min_confidence),
-#                                                                 timestamp), "w") as ofile:
-#            writer = csv.writer(ofile, delimiter="\t")
-#            writer.writerow(['Depth', 'P_domain', 'P_range', 'Supp', 'Conf', 'Head', 'Body'])
-#            for c in f.get():
-#                depth = max(c.body.distances.keys())
-#                bare = pretty_clause(c, ns_dict, label_dict).split("\n"+_PHI+": ")[-1].split(" "+_LEFTARROW+" ")
-#                writer.writerow([depth,
-#                                 c.domain_probability, c.range_probability,
-#                                 c.support, c.confidence,
-#                                 bare[0], bare[1]])
-#
-#    print("done")
+    f_out.close()
+

@@ -10,6 +10,8 @@ from pathlib import Path
 from os.path import basename
 from typing import Any, Self, Union
 
+from hypodisc.core.structures import GraphPattern
+
 
 CONTEXT = { "@version": 1.1,
             "dct": "http://purl.org/dc/terms/",
@@ -67,8 +69,14 @@ def write_metadata(j:JSONStreamer, parameters:dict[str,Any],\
     for k,v in metadata.items():
         j.write_key_value(k, v)
 
-def write_query(j:JSONStreamer, query:str, name:str) -> None:
-    pass
+def write_query(j:JSONStreamer, pattern:GraphPattern, name:str) -> None:
+    query = { "support": pattern.support,
+              "length": len(pattern),
+              "width": pattern.width(),
+              "depth": pattern.depth(),
+              "query": pattern.as_query() }
+
+    j.write_dict(f"@base:{name}", query)
 
 class JSONStreamer():
     class DataStructures(Enum):
