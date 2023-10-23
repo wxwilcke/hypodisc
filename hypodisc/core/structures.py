@@ -279,7 +279,7 @@ class GraphPattern():
             for a in self.distances[d]:
                 if isinstance(a.rhs, ObjectTypeVariable):
                     if a.rhs not in bindings.keys():
-                        bindings[a.rhs] = varnames.pop()
+                        bindings[a.rhs] = "_" + varnames.pop()  # blank node
                         postpone[a.rhs] = True
 
                 q += '\t'
@@ -300,6 +300,14 @@ class GraphPattern():
         
                 if a.rhs in bindings.keys():  # ObjectTypeVariable
                     q += f"?{bindings[a.rhs]}"
+                elif type(a.rhs) is DataTypeVariable:
+                    # implicit blank node
+                    q += f"[\n\t\trdfs:range <{a.rhs.value}>\n\t\t]"
+                elif type(a.rhs) is ResourceWrapper:
+                    if type(a.rhs.value) is IRIRef:
+                        q += f"<{str(a.rhs.value)}>"
+                    else:
+                        q += f"\"{a.rhs.value}\"^^<{a.rhs.type}>"
                 else:
                     q += f"{a.rhs}"
 
