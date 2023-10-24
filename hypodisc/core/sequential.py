@@ -419,9 +419,9 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
     return generation_forest
 
 def infer_type(kg:KnowledgeGraph, rdf_type_idx:int,
-               node_idx:int) -> tuple[IRIRef, bool]:
-    """ Infer the (data) type of a resource. Defaults to rdfs:Class if none can
-        be inferred.
+               node_idx:int) -> tuple[Union[IRIRef, str], bool]:
+    """ Infer the (data) type or language tag of a resource. Defaults to
+        rdfs:Class if none can be inferred.
 
     :param kg:
     :type kg: KnowledgeGraph

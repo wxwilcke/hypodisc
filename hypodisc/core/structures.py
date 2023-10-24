@@ -261,26 +261,26 @@ class GraphPattern():
 
         return False
 
-    def as_query(self, varnames:Optional[list] = None) -> str:
+    def as_query(self) -> str:
         q = ''
         # TODO: prefixes
-        # TODO: object,datatype vars
 
-        if varnames is None:
-            varnames = ['u', 'v', 'w', 'x', 'y', 'z']
-        varnames.reverse()  # we want to pop in order
+        var_i = 97  # start with 'a'
 
         q += "SELECT ?s\n"
         q += "WHERE {\n"
 
         bindings = dict()
         postpone = dict()
+        filter = set()
         for d in self.distances.keys():
             for a in self.distances[d]:
                 if isinstance(a.rhs, ObjectTypeVariable):
                     if a.rhs not in bindings.keys():
-                        bindings[a.rhs] = "_" + varnames.pop()  # blank node
+                        bindings[a.rhs] = "_" + chr(var_i)  # blank node
                         postpone[a.rhs] = True
+
+                        var_i += 1
 
                 q += '\t'
                 if d == 0:
@@ -301,13 +301,32 @@ class GraphPattern():
                 if a.rhs in bindings.keys():  # ObjectTypeVariable
                     q += f"?{bindings[a.rhs]}"
                 elif type(a.rhs) is DataTypeVariable:
-                    # implicit blank node
-                    q += f"[\n\t\trdfs:range <{a.rhs.value}>\n\t\t]"
+                    var = '_' + chr(var_i)
+                    if type(a.rhs.value) is IRIRef:
+                        # data type
+                        filter.add(f"DATATYPE(?{var}) == <{a.rhs.value}>")
+                    else:  # language tag
+                        filter.add(f"LANG(?{var}) == \"{a.rhs.value}\"")
+                    q += f"?{var}"
+                    var_i += 1
+                elif type(a.rhs) is MultiModalStringVariable:
+                    var = '_' + chr(var_i)
+                    filter.add(f"REGEX(STR(?{var}), \"{a.rhs.regex}\")")
+                    q += f"?{var}"
+                    var_i += 1
+                elif type(a.rhs) is MultiModalNumericVariable:
+                    pass
                 elif type(a.rhs) is ResourceWrapper:
                     if type(a.rhs.value) is IRIRef:
                         q += f"<{str(a.rhs.value)}>"
                     else:
-                        q += f"\"{a.rhs.value}\"^^<{a.rhs.type}>"
+                        q += f"\"{a.rhs.value}\""
+                        if type(a.rhs.type) is IRIRef:
+                            # data type
+                            q += f"^^<{a.rhs.type}>"
+                        else:
+                            # language tag
+                            q += f"@{a.rhs.type}"
                 else:
                     q += f"{a.rhs}"
 
@@ -316,8 +335,12 @@ class GraphPattern():
         for otype in postpone.keys():
             if postpone[otype]:
                 q += ( f"\t?{bindings[otype]} rdf:type "
-                       f"<{otype.value}> .\n\t" )
+                       f"<{otype.value}> .\n" )
                 postpone[otype] = False
+
+        q += '\n'
+        if len(filter) > 0:
+            q += "\tFILTER (\n\t\t" + " &&\n\t\t".join(filter) + "\n\t)\n"
 
         q += "}"
 
