@@ -315,7 +315,18 @@ class GraphPattern():
                     q += f"?{var}"
                     var_i += 1
                 elif type(a.rhs) is MultiModalNumericVariable:
-                    pass
+                    var = '_' + chr(var_i)
+                    if a.rhs.lower_bound == a.rhs.upper_bound:
+                        f = ( f"\"{a.rhs.lower_bound}\"^^<{a.rhs.value}> == "
+                              f"?{var}" )
+                    else:
+                        f = ( f"\"{a.rhs.lower_bound}\"^^<{a.rhs.value}> <= "
+                              f"?{var} && ?{var} <= \"{a.rhs.upper_bound}\""
+                              f"^^<{a.rhs.value}>")
+
+                    filter.add(f)
+                    q += f"?{var}"
+                    var_i += 1
                 elif type(a.rhs) is ResourceWrapper:
                     if type(a.rhs.value) is IRIRef:
                         q += f"<{str(a.rhs.value)}>"
@@ -611,16 +622,15 @@ class MultiModalVariable(DataTypeVariable):
 class MultiModalNumericVariable(MultiModalVariable):
     """ Numeric Variable class """
 
-    _nds = chr(0x1D4DD)  # normal distribution symbol
-
+    _leq = chr(0x2264)  # <= sign
     def __init__(self, resource:IRIRef,
-                 centroid:tuple[float, float]) -> None:
+                 crange:tuple[float, float]) -> None:
         """ Initialize and instance of this class
 
         :returns: None
         """
         super().__init__(resource)
-        self.mu, self.var = centroid
+        self.lower_bound, self.upper_bound = crange
 
     def equiv(self, other:MultiModalNumericVariable) -> bool:
         """ Return true if self and other represent the same
@@ -633,8 +643,8 @@ class MultiModalNumericVariable(MultiModalVariable):
         return type(self) is type(other)\
                 and self.dtype == other.dtype\
                 and self.value == other.value\
-                and self.mu == other.mu\
-                and self.var == other.var
+                and self.lower_bound == other.lower_bound\
+                and self.upper_bound == other.upper_bound
 
     def __str__(self) -> str:
         """ Return a description of this variable
@@ -642,7 +652,8 @@ class MultiModalNumericVariable(MultiModalVariable):
         :returns: a description of this variable
         :rtype: str
         """
-        return f"{self.dtype}: {self._nds}({self.mu:.2E}, {self.var:.2E})"
+        return (f"{self.dtype}: {self.lower_bound:.2E} "
+                f"{self._leq} x {self._leq} {self.upper_bound:.2E}")
 
     def __repr__(self) -> str:
         """ Return a technical description of this variable

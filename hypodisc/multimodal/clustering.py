@@ -65,9 +65,9 @@ def cast_values(dtype:IRIRef, values:list) -> tuple[np.ndarray, np.ndarray]:
 
     return X[X_idx], np.array(X_idx, dtype=int)
 
-def cast_values_rev(dtype:IRIRef, clusters:list[tuple])\
+def cast_values_rev_dist(dtype:IRIRef, clusters:list[tuple])\
         -> list[tuple[set, Any]]:
-    """ Cast clusters to relevant datatypes
+    """ Cast clusters to relevant datatypes distributions
 
     :param dtype:
     :type dtype: IRIRef
@@ -77,26 +77,68 @@ def cast_values_rev(dtype:IRIRef, clusters:list[tuple])\
     """
     values = list()
     if dtype in set.union(XSD_NUMERIC, XSD_DATETIME, XSD_DATEFRAG):
-        for mu, var, members in clusters:
+        for mu, sigma, members in clusters:
             try:
                 if dtype in XSD_NUMERIC:
                     if 'integer' in dtype.value.lower():
                         mu = int(mu)
-                        var = int(var)
+                        sigma = int(sigma)
 
-                    values.append((members, (mu, var)))
+                    values.append((members, (mu, sigma)))
                 elif dtype in XSD_DATETIME:
                     # POSIX timestamps
                     mu = cast_datetime_rev(dtype, mu)  # returns dtype
-                    var = cast_datetime_delta(var)  # returns duration
+                    sigma = cast_datetime_delta(sigma)  # returns duration
 
-                    values.append((members, (mu, var)))
+                    values.append((members, (mu, sigma)))
                 elif dtype in XSD_DATEFRAG:
                     # days
                     mu = cast_datefrag_rev(dtype, mu)  # returns dtype
-                    var = cast_datefrag_delta(var)  # return dayTimeDuration
+                    sigma = cast_datefrag_delta(sigma)  # return dayTimeDuration
 
-                    values.append((members, (mu, var)))
+                    values.append((members, (mu, sigma)))
+            except:
+                continue
+    else:  # default to string
+        for pattern, members in clusters:
+            values.append((members, pattern.exact()))
+
+    return values
+
+def cast_values_rev(dtype:IRIRef, clusters:list[tuple])\
+        -> list[tuple[set, Any]]:
+    """ Cast clusters to relevant datatypes ranges
+
+    :param dtype:
+    :type dtype: IRIRef
+    :param clusters:
+    :type clusters: list[tuple]
+    :rtype: list[tuple[set, Any]]
+    """
+    values = list()
+    if dtype in set.union(XSD_NUMERIC, XSD_DATETIME, XSD_DATEFRAG):
+        for mu, sigma, members in clusters:
+            try:
+                lower_bound = mu - 3 * sigma
+                upper_bound = mu + 3 * sigma
+                if dtype in XSD_NUMERIC:
+                    if 'integer' in dtype.value.lower():
+                        lower_bound = int(lower_bound)
+                        upper_bound = int(upper_bound)
+
+                    values.append((members, (lower_bound, upper_bound)))
+                elif dtype in XSD_DATETIME:
+                    # POSIX timestamps
+                    lower_bound = cast_datetime_rev(dtype, lower_bound)  # returns dtype
+                    upper_bound = cast_datetime_rev(dtype, upper_bound)  # returns dtype
+
+                    values.append((members, (lower_bound, upper_bound)))
+                elif dtype in XSD_DATEFRAG:
+                    # days
+                    lower_bound = cast_datefrag_rev(dtype, lower_bound)  # returns dtype
+                    upper_bound = cast_datefrag_rev(dtype, upper_bound)  # returns dtype
+
+                    values.append((members, (lower_bound, upper_bound)))
             except:
                 continue
     else:  # default to string
@@ -128,9 +170,9 @@ def compute_clusters(rng:np.random.Generator, dtype:IRIRef,
         X = X.astype(np.float32)
 
         num_components = range(CLUSTERS_MIN, CLUSTERS_MAX)
-        means, covars, assignments = compute_numeric_clusters(rng, X,
+        means, stdevs, assignments = compute_numeric_clusters(rng, X,
                                                               num_components)
-        clusters = [(means[i], covars[i], set(X_gidx[assignments == i]))
+        clusters = [(means[i], stdevs[i], set(X_gidx[assignments == i]))
                     for i in range(len(means))]
         values = cast_values_rev(dtype, clusters)
     else:  # default to string
@@ -194,19 +236,24 @@ def compute_numeric_clusters(rng:np.random.Generator, X:np.ndarray,
     covar = np.empty(0)
     assignments = np.empty(0)
     for nc in num_components:
-        bic, means, covs, y = compute_GMM(rng, X, sample, nc, num_tries, eps)
+        bic, means, covars, y = compute_GMM(rng, X, sample, nc, num_tries, eps)
         if bic_min is None or bic + eps < bic_min:
             bic_min = bic
             mu = means
-            covar = covs
+            covar = covars
             assignments = y
 
     if standardize:
         # revert standardization
         mu = scaler.inverse_transform(mu)
-        covar = scaler.inverse_transform(covar)
+        sigma = np.einsum('s,pqr->psq', np.sqrt(scaler.var_), covar)
+    else:
+        # compute standard deviations
+        num_components = mu.shape[0]
+        sigma = np.array([[np.sqrt(np.trace(covar[i])/num_components)]
+                         for i in range(0, num_components)])
 
-    return mu, covar, assignments
+    return mu, sigma, assignments
 
 def compute_GMM(rng:np.random.Generator, X:np.ndarray, sample:np.ndarray,
                 num_components:int, num_tries:int,
@@ -245,8 +292,6 @@ def compute_GMM(rng:np.random.Generator, X:np.ndarray, sample:np.ndarray,
             covar = gmm.covariances_
 
             assignments = gmm.predict(X)
-
-    covar = covar.squeeze(-1)  # ensure same dimensions as mu
 
     return bic_min, mu, covar, assignments
 
