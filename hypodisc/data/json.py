@@ -8,7 +8,11 @@ from numbers import Number
 from io import TextIOWrapper
 from pathlib import Path
 from os.path import basename
-from typing import Any, Self, Union
+from typing import Any, Union
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self  # python < 3.11
 
 from hypodisc.core.structures import GraphPattern
 

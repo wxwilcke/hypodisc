@@ -21,6 +21,8 @@ dependencies = [
   "pyRDF >= 2.2.1",
   "numpy",
   "scikit-learn",
+  "toml",
+  "typing_extensions"
   ]
 keywords = ["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"]
 

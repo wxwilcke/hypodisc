@@ -1,6 +1,9 @@
 #! /usr/bin/env python
 
-import tomllib
+try:
+    import tomllib
+except ImportError:
+    import toml as tomllib  # python < 3.11
 from typing import Optional, Tuple
 import random
 
