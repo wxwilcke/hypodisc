@@ -8,7 +8,7 @@ before_script:
 pages:
   script:
     - cp pyproject.toml docs/
-    - cd docs/ && make clean && docroot=`mktemp -d` && sphinx-build -M html source/ docroot/ && mv docroot/html/ ../public && cd -
+    - cd docs/ && docroot=`mktemp -d` && sphinx-build -M html source/ docroot/ && mv docroot/html/ ../public && cd -
     - touch .nojekyll
   artifacts:
     paths:
