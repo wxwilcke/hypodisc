@@ -7,7 +7,7 @@ before_script:
   - pip3 install --no-input typing_extensions pyRDF numpy scikit-learn
 pages:
   script:
-    - cp pyprojects.toml docs/
+    - cp pyproject.toml docs/
     - cd docs/ && make clean && docroot=`mktemp -d` && sphinx-build -M html source/ docroot/ && mv docroot/html/ ../public && cd -
     - touch .nojekyll
   artifacts:
