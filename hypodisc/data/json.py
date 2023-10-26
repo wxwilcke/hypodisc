@@ -8,7 +8,7 @@ from numbers import Number
 from io import TextIOWrapper
 from pathlib import Path
 from os.path import basename
-from typing import Any, Optional, Self, Union
+from typing import Any, Self, Union
 
 from hypodisc.core.structures import GraphPattern
 

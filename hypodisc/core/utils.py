@@ -5,10 +5,11 @@ from typing import Optional, Tuple
 import random
 
 import numpy as np
-from hypodisc.core.structures import Assertion, GraphPattern, Variable
 
 from rdf.terms import Literal, IRIRef
 from rdf.namespaces import RDF, RDFS, XSD
+
+from hypodisc.core.structures import Assertion, GraphPattern, Variable
 
 
 def predict_hash(pattern:GraphPattern, endpoint:Variable,

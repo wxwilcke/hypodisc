@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 import gzip
-from pathlib import Path
-from typing import Optional, List, Set, Tuple, Union
+from typing import Optional, Set, Tuple, Union
 from uuid import uuid4
 
 import numpy as np

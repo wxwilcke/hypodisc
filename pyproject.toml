@@ -25,5 +25,5 @@ dependencies = [
 keywords = ["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"]
 
 [project.urls]
-"Homepage" = "https://gitlab.com/wxwilcke/hypodisc"
+"Homepage" = "https://wxwilcke.gitlab.io/hypodisc"
 "Bug Tracker" = "https://gitlab.com/wxwilcke/hypodisc/-/issues"

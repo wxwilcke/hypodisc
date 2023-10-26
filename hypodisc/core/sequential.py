@@ -6,13 +6,13 @@ from multiprocessing import Manager
 from typing import Counter, Literal, Union
 
 import numpy as np
-from hypodisc.core.utils import predict_hash
-from hypodisc.data.graph import KnowledgeGraph
 
 from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef
 from rdf.terms import Literal as rdfLiteral
 
+from hypodisc.core.utils import predict_hash
+from hypodisc.data.graph import KnowledgeGraph
 from hypodisc.core.structures import (Assertion, GraphPattern,
                                       ResourceWrapper, TypeVariable,
                                       DataTypeVariable,

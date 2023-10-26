@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 
 version = '0.1.0'
@@ -21,8 +21,6 @@ setup(
     long_description = open('README.md').read(),
     long_description_content_type="text/markdown",
     license='GLP3',
-    include_package_data=True,
-    zip_safe=True,
     keywords = ["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"],
     python_requires='>=3.9',
 )

@@ -8,12 +8,14 @@ from pathlib import Path
 from sys import maxsize, exit
 from time import time
 
-from core.sequential import generate
-from core.utils import (floatProbabilityArg, strNamespaceArg, integerRangeArg,
-                        read_version, rng_set_seed)
-from data.graph import KnowledgeGraph, mkprefixes
-from data.json import JSONStreamer, write_context, write_metadata, write_query
-from data.utils import mkfile, UnsupportedSerializationFormat
+from hypodisc.core.sequential import generate
+from hypodisc.core.utils import (floatProbabilityArg, strNamespaceArg,
+                                 integerRangeArg,
+                                 read_version, rng_set_seed)
+from hypodisc.data.graph import KnowledgeGraph, mkprefixes
+from hypodisc.data.json import (JSONStreamer, write_context, write_metadata,
+                                write_query)
+from hypodisc.data.utils import mkfile, UnsupportedSerializationFormat
 
 
 PYPROJECTS_PATH = getcwd() + "/pyproject.toml"

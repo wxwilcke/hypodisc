@@ -3,9 +3,10 @@
 from __future__ import annotations
 from typing import Dict, Iterator, List, Optional, Set, Union
 from uuid import uuid4
-from hypodisc.data.graph import ns2pf
 
 from rdf.terms import IRIRef, Resource
+
+from hypodisc.data.graph import ns2pf
 
 
 class GraphPattern():
