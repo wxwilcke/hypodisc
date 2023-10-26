@@ -6,6 +6,7 @@ except ImportError:
     import toml as tomllib  # python < 3.11
 from typing import Optional, Tuple
 import random
+import sys
 
 import numpy as np
 
@@ -94,8 +95,10 @@ def read_version(filename:str) -> str:
     :rtype: str
     :returns: the project's version as a string
     """
-    with open(filename, 'rb') as f:
+    mode = 'rb' if sys.version_info >= (3, 11) else 'r'
+    with open(filename, mode) as f:
         rc = tomllib.load(f)
+
     try:
         version = rc["project"]["version"]
     except:
