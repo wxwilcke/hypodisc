@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import tomllib
-from typing import Optional
+from typing import Optional, Tuple
 import random
 
 import numpy as np
@@ -42,6 +42,20 @@ def floatProbabilityArg(arg:str) -> float:
 
     return p
 
+def strNamespaceArg(arg:str) -> Tuple[str, str]:
+    try:
+        arg_split = arg.split(':')
+
+        pf = arg_split[0]
+        ns = ':'.join(arg_split[1:])
+
+        if ns.startswith('<') and ns.endswith('>'):
+            ns = ns[1:-1]
+    except:
+        raise Exception(f"'{arg}' is not a valid list of "
+                        +"prefix:namespace pairs.")
+
+    return pf, ns
 
 def integerRangeArg(arg:str) -> range:
     """ Custom argument type for range

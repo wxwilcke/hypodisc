@@ -3,19 +3,66 @@
 from __future__ import annotations
 import gzip
 from pathlib import Path
-from typing import Optional, List, Union
+from typing import Optional, List, Set, Tuple, Union
 from uuid import uuid4
 
 import numpy as np
 
 from rdf import NTriples, NQuads
 from rdf.terms import IRIRef, Literal, BNode
-from rdf.namespaces import RDF, XSD
+from rdf.namespaces import RDF, RDFS, SKOS, OWL, XSD
 from rdf.formats import RDF_Serialization_Format
 
 
 # string datatype
 XSD_STRING = XSD + "string"
+
+# default prefixes
+DEFAULT_PREFIX_MAP = { OWL.value: 'owl',
+                       RDF.value: 'rdf',
+                       RDFS.value: 'rdfs',
+                       SKOS.value: 'skos',
+                       XSD.value: 'xsd' }
+
+def ns2pf(prefix_map:dict[str, str], iri:IRIRef) -> str:
+    ns, name = irisplit(iri)
+    if len(prefix_map) <= 0 or ns not in prefix_map.keys():
+        return iri
+
+    return f"{prefix_map[ns]}:{name}"
+
+def mkprefixes(namespaces:Set[str],
+               custom_prefix_map:Optional[dict[str, str]] = None)\
+        -> dict[str, str]:
+    prefix_map = dict()
+
+    # add user-provided set (if any)
+    if  custom_prefix_map is not None:
+        prefix_map.update(custom_prefix_map)
+
+    # add other namespaces:
+    i = 1
+    for ns in namespaces:
+        if ns in prefix_map.keys():
+            continue
+
+        if ns in DEFAULT_PREFIX_MAP.keys():
+            # use common name
+            prefix_map[ns] = DEFAULT_PREFIX_MAP[ns]
+
+            continue
+
+        prefix_map[ns] = f'ns{i}'
+        i += 1
+
+    return prefix_map
+
+def irisplit(e:IRIRef) -> Tuple[str, str]:
+    for i in range(len(e.value) - 1, 0, -1):
+        if e.value[i] in ('/', '#'):
+            break
+
+    return e.value[:i+1], e.value[i+1:]
 
 class UniqueLiteral(Literal):
     def __init__(self, value:str, datatype:Union[IRIRef,None] = None,
@@ -45,6 +92,7 @@ class KnowledgeGraph():
         :rtype: None
         """
         self._rng = rng
+        self.namespaces = set()
 
     def parse(self, paths:list[str]) -> None:
         """ Parse graph on file level.
@@ -59,6 +107,7 @@ class KnowledgeGraph():
         relations = dict()  # predicates
         datatypes = dict()  # datatype or language tag
         facts = (list(), list(), list())  # graph by index
+        namespaces = set()
 
         n_idx, r_idx = 0, 0
         for path in paths:
@@ -78,22 +127,25 @@ class KnowledgeGraph():
             if is_gzipped:
                 with gzip.open(path, mode='r') as gf:
                     with parser(data=gf.read(), mode='r') as g:
-                        n_idx, r_idx = self._parse(g, (n_idx, r_idx),
-                                                  (nodes, relations,
-                                                   datatypes, facts))
-            else:
-                with parser(path=path, mode='r') as g:
-                    n_idx, r_idx = self._parse(g, (n_idx, r_idx),
+                        n_idx, r_idx, namespaces \
+                                = self._parse(g, (n_idx, r_idx),
                                               (nodes, relations,
                                                datatypes, facts))
+            else:
+                with parser(path=path, mode='r') as g:
+                    n_idx, r_idx, namespaces\
+                            = self._parse(g, (n_idx, r_idx),
+                                          (nodes, relations,
+                                          datatypes, facts))
 
 
+        self.namespaces = namespaces
         self._parse_vectorize(facts, nodes, relations, datatypes)
 
     def _parse(self, g:RDF_Serialization_Format, counters:tuple[int, int],
                data:tuple[dict, dict, dict,
                           tuple[list[IRIRef], list[IRIRef], list[IRIRef]]])\
-                       -> tuple[int, int]:
+                       -> tuple[int, int, set[str]]:
         """ Parse content of graph
 
         Generate indices for nodes, relations, and facts
@@ -105,7 +157,15 @@ class KnowledgeGraph():
         """
         n_idx, r_idx = counters
         nodes, relations, datatypes, facts = data
+        namespaces = set()
         for s, p, o in g.parse():
+            for e in [s, p, o]:
+                if type(e) is not IRIRef:
+                    continue
+
+                ns, _ = irisplit(e)
+                namespaces.add(ns)
+
             # assign indices to elements
             if s in nodes.keys():
                 s_idx = nodes[s]
@@ -151,7 +211,14 @@ class KnowledgeGraph():
                     # default to string
                     datatypes[o_idx] = XSD_STRING
 
-        return n_idx, r_idx
+        for dt in set(datatypes.values()):
+            if type(dt) is not IRIRef:
+                continue
+            
+            ns, _ = irisplit(dt)
+            namespaces.add(ns)
+
+        return n_idx, r_idx, namespaces
 
     def _parse_vectorize(self,
                          facts:tuple[list[IRIRef], list[IRIRef], list[IRIRef]],

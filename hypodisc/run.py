@@ -9,9 +9,9 @@ from sys import maxsize, exit
 from time import time
 
 from core.sequential import generate
-from core.utils import (floatProbabilityArg, integerRangeArg, read_version,
-                        rng_set_seed)
-from data.graph import KnowledgeGraph
+from core.utils import (floatProbabilityArg, strNamespaceArg, integerRangeArg,
+                        read_version, rng_set_seed)
+from data.graph import KnowledgeGraph, mkprefixes
 from data.json import JSONStreamer, write_context, write_metadata, write_query
 from data.utils import mkfile, UnsupportedSerializationFormat
 
@@ -56,6 +56,12 @@ if __name__ == "__main__":
                         type=str, default="AT")
     parser.add_argument("--multimodal", help="Enable multimodal support",
                         required=False, action='store_true')
+    parser.add_argument("--namespace", help="Add a custom prefix:namespace "
+                        + "pair to be used in the output. This parameter can "
+                        + "be used more than once to provide multiple "
+                        + "mappings. Must be provided as 'prefix:namespace', "
+                        + "eg 'ex:http://example.org/'.",
+                        type=strNamespaceArg, action='append', default=None)
     parser.add_argument("--p_explore", help="Probability of exploring "
                         + "candidate endpoint.", type=floatProbabilityArg,
                         required=False, default=1.0)
@@ -136,9 +142,13 @@ if __name__ == "__main__":
     if args.dry_run:
         exit(0)
 
+    namespaces = {ns:pf for pf, ns in args.namespace}
+    prefix_map = mkprefixes(kg.namespaces,
+                            namespaces)
+
     # TODO: remove
-    for i,c in enumerate(f.get()):
-        write_query(f_out, c, f"query_{i}")
+    for i,c in enumerate(f.get(), 1):
+        write_query(f_out, c, f"query_{i}", prefix_map)
 
     f_out.close()
 

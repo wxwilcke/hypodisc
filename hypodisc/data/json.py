@@ -8,7 +8,7 @@ from numbers import Number
 from io import TextIOWrapper
 from pathlib import Path
 from os.path import basename
-from typing import Any, Self, Union
+from typing import Any, Optional, Self, Union
 
 from hypodisc.core.structures import GraphPattern
 
@@ -69,12 +69,13 @@ def write_metadata(j:JSONStreamer, parameters:dict[str,Any],\
     for k,v in metadata.items():
         j.write_key_value(k, v)
 
-def write_query(j:JSONStreamer, pattern:GraphPattern, name:str) -> None:
+def write_query(j:JSONStreamer, pattern:GraphPattern, name:str,
+                prefix_map:dict[str, str]) -> None:
     query = { "support": pattern.support,
               "length": len(pattern),
               "width": pattern.width(),
               "depth": pattern.depth(),
-              "query": pattern.as_query() }
+              "query": pattern.as_query(prefix_map) }
 
     j.write_dict(f"@base:{name}", query)
 

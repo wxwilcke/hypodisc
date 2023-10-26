@@ -3,6 +3,7 @@
 from __future__ import annotations
 from typing import Dict, Iterator, List, Optional, Set, Union
 from uuid import uuid4
+from hypodisc.data.graph import ns2pf
 
 from rdf.terms import IRIRef, Resource
 
@@ -261,9 +262,14 @@ class GraphPattern():
 
         return False
 
-    def as_query(self) -> str:
+    def as_query(self, prefix_map:dict[str, str]) -> str:
         q = ''
-        # TODO: prefixes
+        
+        for ns in sorted(prefix_map.keys()):
+            q += f"PREFIX {prefix_map[ns]}: <{ns}>\n"
+
+        if len(prefix_map) > 0:
+            q += '\n'
 
         var_i = 97  # start with 'a'
 
@@ -288,15 +294,17 @@ class GraphPattern():
                 else:
                     if a.lhs in bindings.keys():  # ObjectTypeVariable
                         if a.lhs in postpone.keys():
+                            pfe = ns2pf(prefix_map, a.lhs.value)
                             q += ( f"?{bindings[a.lhs]} rdf:type "
-                                   f"<{a.lhs.value}> .\n\t" )
+                                   f"{pfe} .\n\t" )
                             postpone[a.lhs] = False
 
                         q += f"?{bindings[a.lhs]}"
                     else:
                         q += f"{a.lhs}"
 
-                q += f" <{a.predicate}> "
+                pfe = ns2pf(prefix_map, a.predicate)
+                q += f" {pfe} "
         
                 if a.rhs in bindings.keys():  # ObjectTypeVariable
                     q += f"?{bindings[a.rhs]}"
@@ -304,37 +312,41 @@ class GraphPattern():
                     var = '_' + chr(var_i)
                     if type(a.rhs.value) is IRIRef:
                         # data type
-                        filter.add(f"DATATYPE(?{var}) == <{a.rhs.value}>")
+                        pfe = ns2pf(prefix_map, a.rhs.value)
+                        filter.add(f"DATATYPE(?{var}) == {pfe}")
                     else:  # language tag
-                        filter.add(f"LANG(?{var}) == \"{a.rhs.value}\"")
+                        filter.add(f"LANG(?{var}) == \\\"{a.rhs.value}\\\"")
                     q += f"?{var}"
                     var_i += 1
                 elif type(a.rhs) is MultiModalStringVariable:
                     var = '_' + chr(var_i)
-                    filter.add(f"REGEX(STR(?{var}), \"{a.rhs.regex}\")")
+                    filter.add(f"REGEX(STR(?{var}), \\\"{a.rhs.regex}\\\")")
                     q += f"?{var}"
                     var_i += 1
                 elif type(a.rhs) is MultiModalNumericVariable:
+                    pfe = ns2pf(prefix_map, a.rhs.value)
                     var = '_' + chr(var_i)
                     if a.rhs.lower_bound == a.rhs.upper_bound:
-                        f = ( f"\"{a.rhs.lower_bound}\"^^<{a.rhs.value}> == "
+                        f = ( f"\\\"{a.rhs.lower_bound}\\\"^^{pfe} == "
                               f"?{var}" )
                     else:
-                        f = ( f"\"{a.rhs.lower_bound}\"^^<{a.rhs.value}> <= "
-                              f"?{var} && ?{var} <= \"{a.rhs.upper_bound}\""
-                              f"^^<{a.rhs.value}>")
+                        f = ( f"\\\"{a.rhs.lower_bound}\\\"^^{pfe} <= "
+                              f"?{var} && ?{var} <= \\\"{a.rhs.upper_bound}\\\""
+                              f"^^{pfe}")
 
                     filter.add(f)
                     q += f"?{var}"
                     var_i += 1
                 elif type(a.rhs) is ResourceWrapper:
                     if type(a.rhs.value) is IRIRef:
-                        q += f"<{str(a.rhs.value)}>"
+                        pfe = ns2pf(prefix_map, a.rhs.value)
+                        q += f"{pfe}"
                     else:
-                        q += f"\"{a.rhs.value}\""
+                        q += f"\\\"{a.rhs.value}\\\""
                         if type(a.rhs.type) is IRIRef:
                             # data type
-                            q += f"^^<{a.rhs.type}>"
+                            pfe = ns2pf(prefix_map, a.rhs.type)
+                            q += f"^^{pfe}"
                         else:
                             # language tag
                             q += f"@{a.rhs.type}"
@@ -343,15 +355,24 @@ class GraphPattern():
 
                 q += ' .\n'
 
+            if d < self.depth():
+                q += '\n'
+
+        add_whitespace = True
         for otype in postpone.keys():
             if postpone[otype]:
+                if add_whitespace:
+                    q += '\n'
+
+                    add_whitespace = False
+
+                pfe = ns2pf(prefix_map, otype.value)
                 q += ( f"\t?{bindings[otype]} rdf:type "
-                       f"<{otype.value}> .\n" )
+                       f"{pfe} .\n" )
                 postpone[otype] = False
 
-        q += '\n'
         if len(filter) > 0:
-            q += "\tFILTER (\n\t\t" + " &&\n\t\t".join(filter) + "\n\t)\n"
+            q += "\n\tFILTER (\n\t\t" + " &&\n\t\t".join(filter) + "\n\t)\n"
 
         q += "}"
 

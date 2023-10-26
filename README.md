@@ -57,6 +57,9 @@ Hypodisc is now installed and ready to use.
                             A[box], T[box], or both as candidates to be included in the pattern (defaults to AT)
       --multimodal          
                             Enable multimodal support (defaults to True)
+      --namespace NAMESPACE
+                            Add a custom prefix:namespace pair to be used in the output. This parameter can be used more than once to provide multiple mappings. Must be provided as 'prefix:namespace', eg 'ex:http://example.org/'.
+
       --p_explore P_EXPLORE
                             Probability of exploring candidate endpoint (defaults to 1.0)
       --p_extend P_EXTEND   
