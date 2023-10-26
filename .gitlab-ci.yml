@@ -4,7 +4,7 @@ image: ubuntu:latest
 before_script:
   - apt-get update
   - DEBIAN_FRONTEND=noninteractive apt-get -y install python3-pip python3-sphinx python3-sphinx-rtd-theme
-  - pip3 install --no-input typing_extensions pyRDF numpy scikit-learn
+  - pip3 install --no-input typing_extensions pyRDF numpy scikit-learn toml
 pages:
   script:
     - cp pyproject.toml docs/
