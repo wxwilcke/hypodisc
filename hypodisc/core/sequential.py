@@ -89,9 +89,12 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                 else:
                     endpoints = {a.rhs for a in pattern.distances[depth-1]
                                  if isinstance(a.rhs, ObjectTypeVariable)}
-                    
 
                 for endpoint in endpoints:
+                    if endpoint.value not in generation_forest.types:
+                        # no extension available
+                        continue
+
                     if p_explore < random():
                         # skip this endpoint with probability p_explore
                         continue

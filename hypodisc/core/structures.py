@@ -872,7 +872,7 @@ class GenerationForest():
         :returns: None
         """
         self._trees = dict()
-        self.types = list()
+        self.types = list()  # type: List[IRIRef]
 
     def add(self, class_iri:IRIRef, depth:int, pattern:GraphPattern) -> None:
         """ Add a pattern to the generation tree at a certain depth
