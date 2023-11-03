@@ -21,7 +21,10 @@ DEFAULT_PREFIX_MAP = { OWL.value: 'owl',
                        RDF.value: 'rdf',
                        RDFS.value: 'rdfs',
                        SKOS.value: 'skos',
-                       XSD.value: 'xsd' }
+                       XSD.value: 'xsd',
+                       "http://purl.org/dc/terms/": 'dct',
+                       "http://www.w3.org/ns/prov#": 'prov'
+}
 
 def ns2pf(prefix_map:dict[str, str], iri:IRIRef) -> str:
     ns, name = irisplit(iri)

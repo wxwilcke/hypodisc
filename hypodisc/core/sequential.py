@@ -3,10 +3,12 @@
 from random import random
 from time import time
 from multiprocessing import Manager
-from typing import Counter, Literal, Union
+from typing import Counter, Literal, Optional, Union
 
 import numpy as np
+from hypodisc.data.utils import write_query
 
+from rdf.formats import NTriples
 from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef
 from rdf.terms import Literal as rdfLiteral
@@ -34,7 +36,9 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
              depths:range, min_support:int,
              p_explore:float, p_extend:float,
              max_length:int, max_width:int,
-             multimodal:bool,
+             multimodal:bool, out_writer:Optional[NTriples],
+             out_prefix_map:Optional[dict[str,str]],
+             out_ns:Optional[IRIRef],
              mode:Literal["A", "T", "AT"]) -> GenerationForest:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
@@ -65,6 +69,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                                                mode, multimodal)
 
     npruned = 0
+    num_patterns = 0
     for depth in range(0, depths.stop):
         print("generating depth {} / {}".format(depth+1, depths.stop))
 
@@ -135,11 +140,19 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                         candidates.append((endpoint, extension))
 
 
-                    derivatives |= explore(pattern,
-                                           candidates = candidates,
-                                           max_length = max_length,
-                                           max_width = max_width,
-                                           min_support = min_support)
+                    extensions = explore(pattern,
+                                         candidates = candidates,
+                                         max_length = max_length,
+                                         max_width = max_width,
+                                         min_support = min_support)
+
+                    if out_writer is not None and out_prefix_map is not None:
+                        for pattern in extensions:
+                            num_patterns = write_query(out_writer, pattern,
+                                                       num_patterns, out_ns,
+                                                       out_prefix_map)
+
+                    derivatives |= extensions
 
             # omit duplicates
             derivatives = {pattern for pattern in derivatives
@@ -150,10 +163,8 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
             generation_forest.update_tree(name, derivatives, depth+1)
 
     duration = time()-t0
-    print('generated {} patterns in {:0.3f}s'.format(
-        sum([tree.size for tree in generation_forest._trees.values()]),
-        duration),
-    end="")
+    print('generated {} patterns in {:0.3f}s'.format(num_patterns, duration),
+          end="")
 
     if npruned > 0:
         print(" ({} pruned)".format(npruned))

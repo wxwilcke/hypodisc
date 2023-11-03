@@ -2,26 +2,124 @@
 
 import argparse
 import logging
+from datetime import datetime
+from getpass import getuser
 from os import access, getcwd, R_OK, W_OK
 from os.path import isdir, isfile
 from pathlib import Path
-from sys import maxsize, exit
+from sys import maxsize
 from time import time
+from typing import Any
+
+from rdf.formats import NTriples
+from rdf.namespaces import RDF, RDFS, XSD
+from rdf.terms import IRIRef, Literal
 
 from hypodisc.core.sequential import generate
 from hypodisc.core.utils import (floatProbabilityArg, strNamespaceArg,
                                  integerRangeArg,
                                  read_version, rng_set_seed)
 from hypodisc.data.graph import KnowledgeGraph, mkprefixes
-from hypodisc.data.json import (JSONStreamer, write_context, write_metadata,
-                                write_query)
 from hypodisc.data.utils import mkfile, UnsupportedSerializationFormat
 
 
 PYPROJECTS_PATH = getcwd() + "/pyproject.toml"
 VERSION = read_version(PYPROJECTS_PATH)
+
 OUTPUT_NAME = "out"
-OUTPUT_EXT = ".jsonld"
+OUTPUT_EXT = ".nt"
+OUTPUT_LANG = "en"
+OUTPUT_TYPE = "http://www.w3.org/ns/mls#Model"
+OUTPUT_FORMAT = ("https://www.iana.org/assignments/media-types/"
+                 "application/n-triples")
+OUTPUT_LABEL = "An automatically generated collection of SPARQL queries"
+OUTPUT_DESCRIPTION = ("A collection of SPARQL queries generated "
+                      "automatically by HypoDisc: a tool, funded "
+                      "by CLARIAH and developed by the DataLegend "
+                      "team (Xander Wilcke, Richard Zijdeman, Rick "
+                      "Mourits, Auke Rijpma, and Sytze van Herck), "
+                      "that can discover novel and "
+                      "potentially-interesting graph patterns "
+                      "in multimodal knowledge graphs which can be "
+                      "used by experts and scholars to form new "
+                      "research hypotheses, to support existing "
+                      "ones, or to gain insight into their data.")
+TASK_DESCRIPTION = ("Discovering potentially interesting graph patterns "
+                    "in multimodal knowledge graphs.")
+REPO_URL = "https://gitlab.com/wxwilcke/hypodisc"
+
+def write_metadata(f_out:NTriples, graph_label:IRIRef,
+                   parameters:dict[str,Any]) -> None:
+    BASE = IRIRef(REPO_URL) + '#'
+    DCT = IRIRef("http://purl.org/dc/terms/")
+    MLS = IRIRef("http://www.w3.org/ns/mls#")
+
+    # output type
+    f_out.write((graph_label, RDF+"type", IRIRef(OUTPUT_TYPE)))
+
+    # output format
+    output_format = IRIRef(OUTPUT_FORMAT)
+    f_out.write((graph_label, DCT+"format", output_format))
+    f_out.write((output_format, RDF+"type", DCT+"MediaType"))
+
+    # output description
+    description = Literal(OUTPUT_DESCRIPTION, language = OUTPUT_LANG)
+    f_out.write((graph_label, DCT+"description", description))
+
+    # output label
+    label = Literal(OUTPUT_LABEL, language = OUTPUT_LANG)
+    f_out.write((graph_label, RDFS+"label", label))
+
+    # creator
+    creator = Literal(f"{getuser().title()}", datatype = XSD+'string')
+    f_out.write((graph_label, DCT+"creator", creator))
+
+    # this specific run
+    run = graph_label + f"#R{datetime.timestamp(datetime.now())}"
+    task = BASE + "HypothesisDiscovery"
+    implementation = IRIRef(REPO_URL)
+    
+    f_out.write((run, RDF+"type", MLS+"Run"))
+    f_out.write((run, MLS+'hasOutput', graph_label))
+    f_out.write((run, MLS+"achieves", task))
+    f_out.write((run, MLS+"executes", implementation))
+
+    t_start = Literal(f"{datetime.isoformat(datetime.now())}",
+                      datatype = XSD+"dateTime")
+    f_out.write((run, DCT+"date", t_start))
+
+    task_description = Literal(TASK_DESCRIPTION, language = OUTPUT_LANG)
+    f_out.write((task, RDF+"type", MLS+"Task"))
+    f_out.write((task, DCT+"description", task_description))
+
+    f_out.write((implementation, RDF+"type", MLS+"Implementation"))
+    version = Literal(f"Version {VERSION}", datatype = XSD+"string")
+    f_out.write((implementation, MLS+"ImplementationCharacteristic", version))
+
+    # which input files
+    for input_file in parameters['input']:
+        p = IRIRef(f"file://{Path(input_file).absolute()}")
+
+        f_out.write((run, MLS+'hasInput', p))
+        f_out.write((p, RDF+"type", MLS+"Dataset"))
+
+    # all other hyperparameters
+    for param, value in parameters.items():
+        if param == 'input' or value is None or not value:
+            continue
+
+        dtype = XSD + "string"
+        if isinstance(value, float):
+            dtype = XSD + "float"
+        elif isinstance(value, int):
+            dtype = XSD + "nonNegativeInteger"
+
+        v = Literal(str(value), datatype = dtype)
+        param = graph_label + f"#P_{param}"
+        f_out.write((param, RDF+"type", MLS+"HyperParameter"))
+        f_out.write((implementation, MLS+"hasHyperParameter", param))
+        f_out.write((param, MLS+"hasValue", v))
+
 
 def setup_logger(verbose:bool) -> None:
     """ Setup logger
@@ -63,7 +161,7 @@ if __name__ == "__main__":
                         + "be used more than once to provide multiple "
                         + "mappings. Must be provided as 'prefix:namespace', "
                         + "eg 'ex:http://example.org/'.",
-                        type=strNamespaceArg, action='append', default=None)
+                        type=strNamespaceArg, action='append', default=[])
     parser.add_argument("--p_explore", help="Probability of exploring "
                         + "candidate endpoint.", type=floatProbabilityArg,
                         required=False, default=1.0)
@@ -101,7 +199,16 @@ if __name__ == "__main__":
         if not access(filename, R_OK):
             raise PermissionError(f"Input path not readable: {filename}")
  
-    # validate paths 
+    # load graph(s)
+    print(f"importing {len(args.input)} graph(s)...", end=" ")
+    kg = KnowledgeGraph(rng)
+    kg.parse(args.input)
+    print("done")
+
+    # validate paths
+    f_out = None
+    prefix_map = None
+    graph_label = None
     if not args.dry_run:
         if isdir(args.output):
             # create new file with default name
@@ -113,23 +220,22 @@ if __name__ == "__main__":
             raise UnsupportedSerializationFormat("Specified output path "
                                                 "has unexpected extension: "
                                                  f"{args.ouput.suffix}")
-        f_out = JSONStreamer(output_path)
-        if not isfile(f_out.filename):
+
+        f_out = NTriples(path = output_path, mode = 'w')
+        if not isfile(f_out.path):
             raise FileNotFoundError(f"Output path not found: {args.output}")
-        if not access(f_out.filename, W_OK):
+        if not access(f_out.path, W_OK):
             raise PermissionError(f"Output path not writable: {args.output}")
 
-        # write context to output
-        write_context(f_out, output_path)
+        print(f"Writing output to {output_path}")
 
+        namespaces = {ns:pf for pf, ns in args.namespace}
+        prefix_map = mkprefixes(kg.namespaces,
+                                namespaces)
+
+        graph_label = IRIRef("file://" + str(output_path))
         # write metadata to output
-        write_metadata(f_out, vars(args))
-
-    # load graph(s)
-    print(f"importing {len(args.input)} graph(s)...", end=" ")
-    kg = KnowledgeGraph(rng)
-    kg.parse(args.input)
-    print("done")
+        write_metadata(f_out, graph_label, vars(args))
 
     # compute clauses
     f = generate(rng = rng, kg = kg, depths = args.depth,
@@ -139,18 +245,7 @@ if __name__ == "__main__":
                  mode = args.mode,
                  max_length = args.max_size,
                  max_width = args.max_width,
-                 multimodal = args.multimodal)
-
-    if args.dry_run:
-        exit(0)
-
-    namespaces = {ns:pf for pf, ns in args.namespace}
-    prefix_map = mkprefixes(kg.namespaces,
-                            namespaces)
-
-    # TODO: remove
-    for i,c in enumerate(f.get(), 1):
-        write_query(f_out, c, f"query_{i}", prefix_map)
-
-    f_out.close()
-
+                 multimodal = args.multimodal,
+                 out_writer = f_out,
+                 out_prefix_map = prefix_map,
+                 out_ns = graph_label)
