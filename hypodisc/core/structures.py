@@ -267,15 +267,15 @@ class GraphPattern():
         q = ''
         
         for ns in sorted(prefix_map.keys()):
-            q += f"PREFIX {prefix_map[ns]}: <{ns}>\n"
+            q += fr"PREFIX {prefix_map[ns]}: <{ns}>\n"
 
         if len(prefix_map) > 0:
-            q += '\n'
+            q += r'\n'
 
         var_i = 97  # start with 'a'
 
-        q += "SELECT ?s\n"
-        q += "WHERE {\n"
+        q += r"SELECT ?s\n"
+        q += r"WHERE {\n"
 
         bindings = dict()
         postpone = dict()
@@ -289,7 +289,7 @@ class GraphPattern():
 
                         var_i += 1
 
-                q += '\t'
+                q += r'\t'
                 if d == 0:
                     q += "?s"
                 else:
@@ -297,7 +297,7 @@ class GraphPattern():
                         if a.lhs in postpone.keys():
                             pfe = ns2pf(prefix_map, a.lhs.value)
                             q += ( f"?{bindings[a.lhs]} rdf:type "
-                                   f"{pfe} .\n\t" )
+                                   fr"{pfe} .\n\t" )
                             postpone[a.lhs] = False
 
                         q += f"?{bindings[a.lhs]}"
@@ -316,23 +316,23 @@ class GraphPattern():
                         pfe = ns2pf(prefix_map, a.rhs.value)
                         filter.add(f"DATATYPE(?{var}) == {pfe}")
                     else:  # language tag
-                        filter.add(f"LANG(?{var}) == \\\"{a.rhs.value}\\\"")
+                        filter.add(fr"LANG(?{var}) == \"{a.rhs.value}\"")
                     q += f"?{var}"
                     var_i += 1
                 elif type(a.rhs) is MultiModalStringVariable:
                     var = '_' + chr(var_i)
-                    filter.add(f"REGEX(STR(?{var}), \\\"{a.rhs.regex}\\\")")
+                    filter.add(fr"REGEX(STR(?{var}), \"{a.rhs.regex}\")")
                     q += f"?{var}"
                     var_i += 1
                 elif type(a.rhs) is MultiModalNumericVariable:
                     pfe = ns2pf(prefix_map, a.rhs.value)
                     var = '_' + chr(var_i)
                     if a.rhs.lower_bound == a.rhs.upper_bound:
-                        f = ( f"\\\"{a.rhs.lower_bound}\\\"^^{pfe} == "
+                        f = ( fr"\"{a.rhs.lower_bound}\"^^{pfe} == "
                               f"?{var}" )
                     else:
-                        f = ( f"\\\"{a.rhs.lower_bound}\\\"^^{pfe} <= "
-                              f"?{var} && ?{var} <= \\\"{a.rhs.upper_bound}\\\""
+                        f = ( fr"\"{a.rhs.lower_bound}\"^^{pfe} <= "
+                              fr"?{var} && ?{var} <= \"{a.rhs.upper_bound}\""
                               f"^^{pfe}")
 
                     filter.add(f)
@@ -343,7 +343,7 @@ class GraphPattern():
                         pfe = ns2pf(prefix_map, a.rhs.value)
                         q += f"{pfe}"
                     else:
-                        q += f"\\\"{a.rhs.value}\\\""
+                        q += fr"\"{a.rhs.value}\""
                         if type(a.rhs.type) is IRIRef:
                             # data type
                             pfe = ns2pf(prefix_map, a.rhs.type)
@@ -354,26 +354,26 @@ class GraphPattern():
                 else:
                     q += f"{a.rhs}"
 
-                q += ' .\n'
+                q += r' .\n'
 
             if d < self.depth():
-                q += '\n'
+                q += r'\n'
 
         add_whitespace = True
         for otype in postpone.keys():
             if postpone[otype]:
                 if add_whitespace:
-                    q += '\n'
+                    q += r'\n'
 
                     add_whitespace = False
 
                 pfe = ns2pf(prefix_map, otype.value)
-                q += ( f"\t?{bindings[otype]} rdf:type "
-                       f"{pfe} .\n" )
+                q += ( fr"\t?{bindings[otype]} rdf:type "
+                       fr"{pfe} .\n" )
                 postpone[otype] = False
 
         if len(filter) > 0:
-            q += "\n\tFILTER (\n\t\t" + " &&\n\t\t".join(filter) + "\n\t)\n"
+            q += r"\n\tFILTER (\n\t\t" + r" &&\n\t\t".join(filter) + r"\n\t)\n"
 
         q += "}"
 

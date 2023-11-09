@@ -227,7 +227,7 @@ if __name__ == "__main__":
         if not access(f_out.path, W_OK):
             raise PermissionError(f"Output path not writable: {args.output}")
 
-        print(f"Writing output to {output_path}")
+        print(f"writing output to {output_path}")
 
         namespaces = {ns:pf for pf, ns in args.namespace}
         prefix_map = mkprefixes(kg.namespaces,
