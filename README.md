@@ -19,15 +19,15 @@ The full list of supported datatypes can be found below.
 
 To install this tool you will need the [git version control system](https://git-scm.com) and a recent [Python](https://www.python.org) setup which include `pip`. 
 
-1) Clone this repository using `git`:
+1) Clone this repository (and the necessary submodules) using `git`:
 
-    git clone https://gitlab.com/wxwilcke/hypodisc.git
+    git clone --recurse-submodules https://gitlab.com/wxwilcke/hypodisc.git
 
 2) Change directory to the root of the tool:
 
     cd hypodisc/
 
-3) Install the prerequisites (numpy, sklearn, and pyRDF) and the tool itself using pip:
+3) Install the prerequisites (numpy, sklearn, flask, and pyRDF) and the tool itself using pip:
 
     pip install .
 
@@ -80,6 +80,12 @@ For any RDF knowledge graph in N-Triple or N-Quad format, run the tool using:
     python hypodisc/run.py --depth <DEPTH> --min_support <SUPPORT>  [<KNOWLEDGE_GRAPH>, ...]  
 
 See the `test/` directory for an example.
+
+## Pattern Browser
+
+A simple facet browser can be used to interactively inspect the discovered patterns:
+
+    python hypodisc/browse.py <PATTERNS>
 
 ## Supported datatypes
 

@@ -22,7 +22,8 @@ dependencies = [
   "numpy",
   "scikit-learn",
   "toml",
-  "typing_extensions"
+  "typing_extensions",
+  "flask"
   ]
 keywords = ["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"]
 

@@ -15,7 +15,7 @@ setup(
     author='Xander Wilcke',
     author_email='w.x.wilcke@vu.nl',
     url='https://wxwilcke.gitlab.io/hypodisc',
-    install_requires=['pyRDF >= 2.2.1', 'numpy', 'scikit-learn', 'toml', 'typing_extensions'],
+    install_requires=['pyRDF >= 2.2.1', 'numpy', 'flask', 'scikit-learn', 'toml', 'typing_extensions'],
     download_url = 'https://gitlab.com/wxwilcke/hypodisc/-/archive/' + version + '/hypodisc-' + version + '.tar.gz',
     description='Hypothesis Discovery on RDF Knowledge Graphs',
     long_description = open('README.md').read(),

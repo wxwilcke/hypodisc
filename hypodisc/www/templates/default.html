@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <!-- from https://github.com/highlightjs/highlightjs-turtle -->
+        <script type="text/javascript" src={{url_for('static', filename='highlight/src/turtle.js')}}></script>
+        <script type="text/javascript" src={{url_for('static', filename='highlight/src/sparql.js')}}></script>
+        <script type="text/javascript">
+            hljs.highlightAll();
+        </script>
+        <script>
+            function toggleCollapse() {
+                const elem = document.getElementById("metadata");
+
+                if (elem.style.maxHeight){
+                  elem.style.maxHeight = null;
+                } else {
+                  elem.style.maxHeight = elem.scrollHeight + "px";
+                }
+            }
+        </script>
+        <meta charset="utf-8">
+        <title>HypoDisc - {{ filename }}</title>
+        <link rel="stylesheet" href={{url_for('static', filename='highlight/styles/onto-hljs.css')}} />
+        <link href={{url_for('static', filename='default.css')}} rel="stylesheet" />
+    </head>
+    <body>
+        <h1>HypoDisc Pattern Browser</h1>
+        <b>{{ filename }}</b>
+
+        <h2>Meta Data</h2>
+        <button type="button" onclick="toggleCollapse()" class="collapsible">show more</button>
+        <div id="metadata">
+            <table>
+            {%for k,v in metadata.items()%}
+            <tr>
+                <td>{{k}}</td>
+                <td>{{v}}</td>
+            </tr>
+            {%endfor%}
+            </table>
+        </div>
+
+        <h2>Patterns</h2>
+        {%for query in queries%}
+        <table class="pattern">
+        <tr>
+            <td><b>id</b></td>
+            <td>{{ query['id'] }}</td>
+        </tr>
+        <tr>
+            <td>support</td>
+            <td>{{ query['support'] }}</td>
+        </tr>
+        <tr>
+            <td>depth</td>
+            <td>{{ query['depth'] }}</td>
+        </tr>
+        <tr>
+            <td>width</td>
+            <td>{{ query['width'] }}</td>
+        </tr>
+        <tr>
+            <td>length</td>
+            <td>{{ query['length'] }}</td>
+        </tr>
+        <tr>
+            <td>pattern</td>
+            <td class="query">
+                <pre>
+                    <code class="sparql">{{ query['pattern'] }}</code>
+                </pre>
+            </td>
+        </tr>
+        </table>
+        <br/>
+        {%endfor%}
+        <hr/>
+        <p>This tool is partly funded by the CLARIAH Research Infrastructure - 
+        <a href="https://gitlab.com/wxwilcke/hypodisc">gitlab.com/wxwilcke/hypodisc<a></p>
+    </body>
+</html>

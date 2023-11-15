@@ -75,7 +75,8 @@ def write_metadata(f_out:NTriples, graph_label:IRIRef,
     f_out.write((graph_label, DCT+"creator", creator))
 
     # this specific run
-    run = graph_label + f"#R{datetime.timestamp(datetime.now())}"
+    r = int(datetime.timestamp(datetime.now()))
+    run = graph_label + f"#R{r}"
     task = BASE + "HypothesisDiscovery"
     implementation = IRIRef(REPO_URL)
     
@@ -108,17 +109,23 @@ def write_metadata(f_out:NTriples, graph_label:IRIRef,
         if param == 'input' or value is None or not value:
             continue
 
+        # hyperparameters of the model
+        base_param = BASE + f"P_{param}"
+        f_out.write((implementation, MLS+"hasHyperParameter", base_param))
+
         dtype = XSD + "string"
         if isinstance(value, float):
             dtype = XSD + "float"
         elif isinstance(value, int):
             dtype = XSD + "nonNegativeInteger"
 
+        # hyperparameters used in this run
         v = Literal(str(value), datatype = dtype)
-        param = graph_label + f"#P_{param}"
-        f_out.write((param, RDF+"type", MLS+"HyperParameter"))
-        f_out.write((implementation, MLS+"hasHyperParameter", param))
-        f_out.write((param, MLS+"hasValue", v))
+        param_instance = run + f"P_{param}"
+        f_out.write((run, MLS+'hasInput', param_instance))
+        f_out.write((param_instance, RDF+"type", MLS+"HyperParameterSetting"))
+        f_out.write((param_instance, MLS+"specifiedBy", base_param))
+        f_out.write((param_instance, MLS+"hasValue", v))
 
 
 def setup_logger(verbose:bool) -> None:

@@ -1,0 +1,3 @@
+[submodule "hypodisc/www/static/highlight"]
+	path = hypodisc/www/highlight
+	url = https://github.com/highlightjs/highlightjs-turtle
