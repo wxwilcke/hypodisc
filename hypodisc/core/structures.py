@@ -379,6 +379,224 @@ class GraphPattern():
 
         return q
 
+    def as_dot(self, prefix_map:dict[str, str]) -> str:
+        labels = dict()
+        annotations = set()
+        postpone = set()
+        entities = dict()
+        classes = dict()
+        literals = dict()
+
+        i = 1
+        var_i = 97  # start with 'a'
+
+        dot = r"strict digraph { "
+        dot += r"subgraph glabel { glabel [shape = box,  label = \""
+        for k,v in prefix_map.items():
+            dot += fr"{v}: <{k}>\l"
+        dot += r"\"] } "
+        dot += r"edge [ minlen = 2 ];"
+        dot += r"\"root\" [shape = oval, label = \"?s\", style = bold ]; "
+        for d in self.distances.keys():
+            for a in self.distances[d]:
+                edge = ''
+                if a.lhs == self.root:
+                    edge += r"\"root\""
+                else:  # ObjectTypeVariable
+                    pfe = ns2pf(prefix_map, a.lhs.value)
+                    class_lab = fr"\"{pfe}\""
+
+                    if a.lhs.value not in entities.keys():
+                        entities[a.lhs.value] = f"n{i}"
+                        i += 1
+
+                    node_id = entities[a.lhs.value]
+                    edge += node_id
+
+                    if node_id not in labels.keys():
+                        labels[node_id] = fr"\"?_{chr(var_i)}\""
+                        var_i += 1
+
+                    if class_lab not in classes.keys():
+                        classes[class_lab] = f"n{i}"
+                        i += 1
+
+                    class_id = classes[class_lab]
+                    if class_id not in labels.keys():
+                        labels[class_id] = class_lab
+                        postpone.add(fr"{node_id} -> {class_id} "
+                                     r"[label = \"rdf:type\"]; ")
+
+                edge += " -> "
+                if isinstance(a.rhs, ObjectTypeVariable):
+                    pfe = ns2pf(prefix_map, a.rhs.value)
+                    class_lab = fr"\"{pfe}\""
+
+                    if a.rhs.value not in entities.keys():
+                        entities[a.rhs.value] = f"n{i}"
+                        i += 1
+
+                    node_id = entities[a.rhs.value]
+                    edge += node_id
+
+                    if node_id not in labels.keys():
+                        labels[node_id] = fr"\"?_{chr(var_i)}\""
+                        var_i += 1
+
+                    if class_lab not in classes.keys():
+                        classes[class_lab] = f"n{i}"
+                        i += 1
+
+                    class_id = classes[class_lab]
+                    if class_id not in labels.keys():
+                        labels[class_id] = class_lab
+                        postpone.add(fr"{node_id} -> {class_id} "
+                                     r"[label = \"rdf:type\"]; ")
+                elif type(a.rhs) is DataTypeVariable:
+                    literals[a.rhs] = f"n{i}"
+                    i += 1
+
+                    node_id = literals[a.rhs]
+                    edge += node_id
+
+                    if node_id not in labels.keys():
+                        labels[node_id] = fr"\"?_{chr(var_i)}\""
+                        var_i += 1
+
+                    ann_id = f"n{i}"
+                    i += 1
+
+                    annotations.add(ann_id)
+                    if type(a.rhs.value) is IRIRef:
+                        # data type
+                        pfe = ns2pf(prefix_map, a.rhs.value)
+                        labels[ann_id] = fr"\"{pfe}\""
+                        postpone.add(fr"{node_id} -> {ann_id} "
+                                     "[label = datatype, style = dashed, "
+                                     "arrowhead = none]; ")
+                    else:  # language tag
+                        labels[ann_id] = fr"\"{a.rhs.value}\""
+                        postpone.add(fr"{node_id} -> {ann_id} "
+                                     "[label = language, style = dashed, "
+                                     "arrowhead = none]; ")
+                elif type(a.rhs) is MultiModalStringVariable:
+                    literals[a.rhs] = f"n{i}"
+                    i += 1
+
+                    node_id = literals[a.rhs]
+                    edge += node_id
+
+                    if node_id not in labels.keys():
+                        labels[node_id] = fr"\"?_{chr(var_i)}\""
+                        var_i += 1
+
+                    ann_id = f"n{i}"
+                    i += 1
+
+                    annotations.add(ann_id)
+                    labels[ann_id] = fr"\"\\\"{a.rhs.regex}\\\"\""
+                    postpone.add(fr"{node_id} -> {ann_id} "
+                                 "[label = regex, style = dashed, "
+                                 "arrowhead = none]; ")
+                elif type(a.rhs) is MultiModalNumericVariable:
+                    literals[a.rhs] = f"n{i}"
+                    i += 1
+
+                    node_id = literals[a.rhs]
+                    edge += node_id
+
+                    if node_id not in labels.keys():
+                        labels[node_id] = fr"\"?_{chr(var_i)}\""
+                        var_i += 1
+
+                    ann_id = f"n{i}"
+                    i += 1
+
+                    annotations.add(ann_id)
+
+                    pfe = ns2pf(prefix_map, a.rhs.value)
+                    labels[ann_id] = ( fr"\"{pfe}\"")
+                    postpone.add(fr"{node_id} -> {ann_id} "
+                                 "[label = datatype, style = dashed, "
+                                 "arrowhead = none]; ")
+
+                    ann_id = f"n{i}"
+                    i += 1
+
+                    annotations.add(ann_id)
+
+                    labels[ann_id] = ( fr"\"[{a.rhs.lower_bound}, "
+                                        fr"{a.rhs.upper_bound}]\"")
+                    postpone.add(fr"{node_id} -> {ann_id} "
+                                 "[label = range, style = dashed, "
+                                 "arrowhead = none]; ")
+
+                elif type(a.rhs) is ResourceWrapper:
+                    if type(a.rhs.value) is IRIRef:
+                        if a.rhs.value not in entities.keys():
+                            entities[a.rhs.value] = f"n{i}"
+                            i += 1
+
+                        node_id = entities[a.rhs.value]
+                        edge += node_id
+
+                        pfe = ns2pf(prefix_map, a.rhs.value)
+                        labels[node_id] = fr"\"{pfe}\""
+                    else:
+                        literals[a.rhs] = f"n{i}"
+                        i += 1
+
+                        node_id = literals[a.rhs]
+                        edge += node_id
+                            
+                        ann_id = f"n{i}"
+                        i += 1
+                        
+                        annotations.add(ann_id)
+                        if type(a.rhs.type) is IRIRef:
+                            # data type
+                            pfe = ns2pf(prefix_map, a.rhs.type)
+                            labels[node_id] = fr"\"{a.rhs.value}\""
+
+                            labels[ann_id] = fr"\"{pfe}\""
+                            postpone.add(fr"{node_id} -> {ann_id} "
+                                         "[label = datatype, style = dashed, "
+                                         "arrowhead = none]; ")
+                        else:
+                            # language tag
+                            labels[node_id] = fr"\"{a.rhs.value}\""
+
+                            labels[ann_id] = fr"\"{a.rhs.type}\""
+                            postpone.add(fr"{node_id} -> {ann_id} "
+                                         "[label = language, style = dashed, "
+                                         "arrowhead = none]; ")
+
+                pfe = ns2pf(prefix_map, a.predicate)
+                edge += fr"[label = \"{pfe}\"]; "
+
+                dot += edge
+
+                for t in postpone:
+                    dot += t
+
+        for node_id in entities.values():
+            lab = labels[node_id]
+            dot += fr"{node_id} [shape = oval, label = {lab}]; "
+
+        for node_id in classes.values():
+            lab = labels[node_id]
+            dot += fr"{node_id} [shape = box, label = {lab}]; "
+
+        for node_id in literals.values():
+            lab = labels[node_id]
+            dot += fr"{node_id} [shape = plaintext, label = {lab}]; "
+
+        for node_id in annotations:
+            lab = labels[node_id]
+            dot += fr"{node_id} [shape = plain, label = {lab}]; "
+
+        return dot + '}'
+
     def __repr__(self) -> str:
         """ Return an internal string representation
 

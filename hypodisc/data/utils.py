@@ -19,9 +19,12 @@ def write_query(f_out:NTriples, pattern:GraphPattern, num_patterns:int,
     pLength = REPO_IRI + "hasLength"
     pWidth = REPO_IRI + "hasWidth"
     pDepth = REPO_IRI + "hasDepth"
+    pDot = REPO_IRI + "hasDotRepresentation"
     pPattern = REPO_IRI + "hasPattern"
 
     qpattern = Literal(pattern.as_query(prefix_map),
+                       datatype = XSD + "string")
+    qdotrep = Literal(pattern.as_dot(prefix_map),
                        datatype = XSD + "string")
     qsupport = Literal(str(pattern.support),
                        datatype = XSD+"nonNegativeInteger")
@@ -33,6 +36,7 @@ def write_query(f_out:NTriples, pattern:GraphPattern, num_patterns:int,
                        datatype = XSD+"nonNegativeInteger")
     
     f_out.write((pattern_iri, pPattern, qpattern))
+    f_out.write((pattern_iri, pDot, qdotrep))
     f_out.write((pattern_iri, pSupport, qsupport))
     f_out.write((pattern_iri, pLength, qlength))
     f_out.write((pattern_iri, pWidth, qwidth))
