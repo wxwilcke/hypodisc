@@ -15,7 +15,8 @@ from rdf.formats import NTriples
 from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef, Literal
 
-from hypodisc.core.sequential import generate
+from hypodisc.core.sequential import generate as generate_seq
+from hypodisc.core.parallel import generate as generate_mp
 from hypodisc.core.utils import (floatProbabilityArg, strNamespaceArg,
                                  integerRangeArg,
                                  read_version, rng_set_seed)
@@ -169,6 +170,9 @@ if __name__ == "__main__":
                         + "mappings. Must be provided as 'prefix:namespace', "
                         + "eg 'ex:http://example.org/'.",
                         type=strNamespaceArg, action='append', default=[])
+    parser.add_argument("--parallel", help="Speed up the computation by "
+                        "distributing the search across multiple CPU cores",
+                        action="store_true")
     parser.add_argument("--p_explore", help="Probability of exploring "
                         + "candidate endpoint.", type=floatProbabilityArg,
                         required=False, default=1.0)
@@ -244,15 +248,19 @@ if __name__ == "__main__":
         # write metadata to output
         write_metadata(f_out, graph_label, vars(args))
 
+    generate = generate_seq
+    if args.parallel:
+        generate = generate_mp
+
     # compute clauses
-    f = generate(rng = rng, kg = kg, depths = args.depth,
-                 min_support = args.min_support,
-                 p_explore = args.p_explore,
-                 p_extend = args.p_extend,
-                 mode = args.mode,
-                 max_length = args.max_size,
-                 max_width = args.max_width,
-                 multimodal = args.multimodal,
-                 out_writer = f_out,
-                 out_prefix_map = prefix_map,
-                 out_ns = graph_label)
+    generate(rng = rng, kg = kg, depths = args.depth,
+             min_support = args.min_support,
+             p_explore = args.p_explore,
+             p_extend = args.p_extend,
+             mode = args.mode,
+             max_length = args.max_size,
+             max_width = args.max_width,
+             multimodal = args.multimodal,
+             out_writer = f_out,
+             out_prefix_map = prefix_map,
+             out_ns = graph_label)

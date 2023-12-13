@@ -14,7 +14,6 @@ Hypodisc supports multimodal information of various types, which, in accordance 
 
 The full list of supported datatypes can be found below.
 
-
 ## Installation
 
 To install this tool you will need the [git version control system](https://git-scm.com) and a recent [Python](https://www.python.org) setup which include `pip`. 
@@ -35,7 +34,7 @@ Hypodisc is now installed and ready to use.
 
 ## Usage 
 
-    usage: HypoDisc [-h] -d DEPTH -s MIN_SUPPORT [-o OUTPUT] [--max_size MAX_SIZE] [--max_width MAX_WIDTH] [--mode {A,T,AT,TA}] [--multimodal] [--p_explore P_EXPLORE] [--p_extend P_EXTEND] [--dry_run] [--seed SEED] [--verbose] [--version] input [input ...]
+    usage: HypoDisc [-h] -d DEPTH -s MIN_SUPPORT [-o OUTPUT] [--max_size MAX_SIZE] [--max_width MAX_WIDTH] [--mode {A,T,AT,TA}] [--multimodal] [--parallel] [--p_explore P_EXPLORE] [--p_extend P_EXTEND] [--dry_run] [--seed SEED] [--verbose] [--version] input [input ...]
     
     positional arguments:
       input                 One or more knowledge graphs in (gzipped) NTriple or NQuad serialization format.
@@ -59,6 +58,9 @@ Hypodisc is now installed and ready to use.
                             Enable multimodal support (defaults to True)
       --namespace NAMESPACE
                             Add a custom prefix:namespace pair to be used in the output. This parameter can be used more than once to provide multiple mappings. Must be provided as 'prefix:namespace', eg 'ex:http://example.org/'.
+
+      --parallel            
+                            Speed up the computation by distributing the search across multiple CPU cores.
 
       --p_explore P_EXPLORE
                             Probability of exploring candidate endpoint (defaults to 1.0)

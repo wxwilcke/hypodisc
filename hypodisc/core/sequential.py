@@ -21,8 +21,7 @@ from hypodisc.core.structures import (Assertion, GraphPattern,
                                       Variable,
                                       MultiModalNumericVariable,
                                       MultiModalStringVariable,
-                                      ObjectTypeVariable, GenerationForest,
-                                      GenerationTree)
+                                      ObjectTypeVariable)
 from hypodisc.multimodal.clustering import (compute_clusters,
                                             SUPPORTED_XSD_TYPES)
 from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
@@ -39,7 +38,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
              multimodal:bool, out_writer:Optional[NTriples],
              out_prefix_map:Optional[dict[str,str]],
              out_ns:Optional[IRIRef],
-             mode:Literal["A", "T", "AT"]) -> GenerationForest:
+             mode:Literal["A", "T", "AT"]) -> None: 
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
 
@@ -61,30 +60,32 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
     :type multimodal: bool
     :param mode:
     :type mode: Literal["A", "AT", "T"]
-    :rtype: GenerationForest
+    :rtype: None
     """
 
     t0 = time()
-    generation_forest = init_generation_forest(rng, kg, min_support,
-                                               mode, multimodal)
+    root_patterns = init_root_patterns(rng, kg, min_support,
+                                       mode, multimodal)
 
+    parents = dict()
     npruned = 0
     num_patterns = 0
     for depth in range(0, depths.stop):
-        print("generating depth {} / {}".format(depth+1, depths.stop))
+        print("exploring depth {} / {}".format(depth+1, depths.stop))
+
+        if depth == 0:
+            parents = root_patterns
 
         visited = set()
-        for name in generation_forest.types:
+        derivatives = dict()
+        for name in parents.keys():
             print(f" type {name}", end=" ")
 
-            derivatives = set()  # patterns derived from parents of depth d
-            generation_tree = generation_forest.get_tree(name)
-            for pattern in generation_tree.get(depth):
-                if len(pattern) >= max_length and pattern.width() >= max_width:
+            derivatives[name] = set()
+            for pattern in parents[name]:
+                if len(pattern) >= max_length or pattern.width() >= max_width:
                     continue
                     
-                candidates = list()
-
                 # Gather candidate endpoints at this depth.
                 # Only consider unbound object type variables since we
                 # cannot connect to literals or data type variables, and
@@ -95,8 +96,9 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                     endpoints = {a.rhs for a in pattern.distances[depth-1]
                                  if isinstance(a.rhs, ObjectTypeVariable)}
 
+                candidates = set()
                 for endpoint in endpoints:
-                    if endpoint.value not in generation_forest.types:
+                    if endpoint.value not in root_patterns.keys():
                         # no extension available
                         continue
 
@@ -106,8 +108,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 
                     # Gather all candidate extensions that can connect
                     # to an object type variable of the relevant type.
-                    for base_pattern in generation_forest.get(endpoint.value,
-                                                              depth = 0):                            
+                    for base_pattern in root_patterns[endpoint.value]:                            
                         if p_extend < random():
                             # skip this extension with probability p_extend
                             continue
@@ -137,7 +138,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                             # limit extensions to Tbox
                             continue
 
-                        candidates.append((endpoint, extension))
+                        candidates.add((endpoint, extension))
 
 
                     extensions = explore(pattern,
@@ -152,18 +153,16 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                                                        num_patterns, out_ns,
                                                        out_prefix_map)
 
-                    derivatives |= extensions
+                    derivatives[name] |= extensions
 
-            # omit duplicates
-            derivatives = {pattern for pattern in derivatives
-                           if pattern not in generation_tree}
+            print("(+{} discovered)".format(len(derivatives[name])))
 
-            print("(+{} added)".format(len(derivatives)))
-
-            generation_forest.update_tree(name, derivatives, depth+1)
+        # omit exhausted classes from next iteration
+        parents = {k:v for k,v in derivatives.items()
+                   if len(v) > 0}
 
     duration = time()-t0
-    print('generated {} patterns in {:0.3f}s'.format(num_patterns, duration),
+    print('discovered {} patterns in {:0.3f}s'.format(num_patterns, duration),
           end="")
 
     if npruned > 0:
@@ -171,9 +170,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
     else:
         print()
 
-    return generation_forest
-
-def explore(parent:GraphPattern, candidates:list,
+def explore(parent:GraphPattern, candidates:set,
             max_length:int, max_width:int, min_support:int) -> set:
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
@@ -181,7 +178,7 @@ def explore(parent:GraphPattern, candidates:list,
     :param pattern:
     :type pattern: GraphPattern
     :param candidates:
-    :type candidates: list
+    :type candidates: set
     :param max_length:
     :type max_length: int
     :param max_width:
@@ -250,11 +247,10 @@ def extend(pattern:GraphPattern, endpoint:Variable, extension:Assertion)\
 
     return pattern_new
 
-def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
-                           min_support:float, mode:Literal["A", "AT", "T"],
-                           multimodal:bool) -> GenerationForest:
-    """ Initialize the generation forest by creating all generation trees of
-    types which satisfy minimal support.
+def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
+                       min_support:float, mode:Literal["A", "AT", "T"],
+                       multimodal:bool) -> dict[str,list]:
+    """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
     :type rng: np.random.Generator
@@ -267,10 +263,10 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
     :param multimodal:
     :type multimodal: bool
     :returns:
-    :rtype: GenerationForest
+    :rtype: dict[str,list]
     """
-    print("initializing Generation Forest")
-    generation_forest = GenerationForest()
+    print("mapping root patterns")
+    root_patterns = dict()
 
     # don't generate what we won't need
     generate_Abox = False
@@ -295,7 +291,7 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
             continue
 
         class_name = kg.i2n[class_idx]
-        generation_tree = GenerationTree(class_name)
+        root_patterns[class_name] = list()
 
         print(f" type {class_name}...", end='')
 
@@ -348,7 +344,7 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                                                 o_type, domain, inv_assertion_map)
                     
                     if pattern is not None and pattern.support >= min_support:
-                        generation_tree.add(pattern, depth=0)
+                        root_patterns[class_name].append(pattern)
                             
     
             # add graph_patterns with variables as objects
@@ -381,7 +377,7 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
                                                           inv_assertion_map)
     
                 if pattern is not None and pattern.support >= min_support:
-                    generation_tree.add(pattern, depth=0)
+                    root_patterns[class_name].append(pattern)
     
             if multimodal:
                 # assume that all objects linked by the same relation are of
@@ -421,16 +417,15 @@ def init_generation_forest(rng:np.random.Generator, kg:KnowledgeGraph,
     
                         if pattern is not None\
                             and pattern.support >= min_support:
-                            generation_tree.add(pattern, depth=0)
+                            root_patterns[class_name].append(pattern)
 
-        print(" (+{} added)".format(generation_tree.size))
+        tree_size = len(root_patterns[class_name])
+        print(" (+{} discovered)".format(tree_size))
 
-        if generation_tree.size <= 0:
-            continue
+        if tree_size <= 0:
+            del root_patterns[class_name]
 
-        generation_forest.plant(class_name, generation_tree)
-
-    return generation_forest
+    return root_patterns
 
 def infer_type(kg:KnowledgeGraph, rdf_type_idx:int,
                node_idx:int) -> tuple[Union[IRIRef, str], bool]:
