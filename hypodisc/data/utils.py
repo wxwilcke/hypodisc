@@ -19,7 +19,7 @@ def write_query(f_out:NTriples, pattern:GraphPattern, num_patterns:int,
     pLength = REPO_IRI + "hasLength"
     pWidth = REPO_IRI + "hasWidth"
     pDepth = REPO_IRI + "hasDepth"
-    pDot = REPO_IRI + "hasDotRepresentation"
+    pDot = REPO_IRI + "hasDOTRepresentation"
     pPattern = REPO_IRI + "hasPattern"
 
     qpattern = Literal(pattern.as_query(prefix_map),

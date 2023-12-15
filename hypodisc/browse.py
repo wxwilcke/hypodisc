@@ -51,6 +51,8 @@ def process_query(data:list, query_id:int) -> dict:
         if attr == 'pattern' and type(value) is str:
             value = codecs.decode(value, 'unicode_escape')
             value = '\n' + value
+        if attr == 'dotrepresentation' and type(value) is str:
+            value = codecs.decode(value, 'unicode_escape')
 
         query[attr] = value
 
