@@ -125,6 +125,9 @@ def cast_values_rev(dtype:IRIRef, clusters:list[tuple])\
                     if 'integer' in dtype.value.lower():
                         lower_bound = int(lower_bound)
                         upper_bound = int(upper_bound)
+                    else:
+                        lower_bound = float(lower_bound)
+                        upper_bound = float(upper_bound)
 
                     values.append((members, (lower_bound, upper_bound)))
                 elif dtype in XSD_DATETIME:
