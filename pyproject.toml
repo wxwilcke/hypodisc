@@ -18,8 +18,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "pyRDF >= 2.2.1",
+  "pyRDF >= 2.3.0",
   "numpy",
+  "scipy",
   "scikit-learn",
   "toml",
   "typing_extensions",
