@@ -113,11 +113,15 @@ class KnowledgeGraph():
         """
         nodes = dict()  # type: dict[Union[IRIRef,Literal], int]
         relations = dict()  # type: dict[IRIRef, int]
-        datatypes = dict()  # type: dict[int, Union[IRIRef, str]]
+        annotations = dict()  # type: dict[Union[IRIRef, Literal], int]
+        literals_attr = dict()  # type: dict[int, int]
         facts = list()  # type: list[list[list[int]]]
         namespaces = set()  # type: set[str]
 
-        n_idx, r_idx = 0, 0
+        n_idx, r_idx, d_idx = 0, 0, 0
+
+        annotations[XSD_STRING] = 0
+        d_idx += 1
         for path in paths:
             parts = path.split('.')
             is_gzipped = parts[-1] == "gz"
@@ -135,23 +139,27 @@ class KnowledgeGraph():
             if is_gzipped:
                 with gzip.open(path, mode='r') as gf:
                     with parser(data=gf.read(), mode='r') as g:
-                        n_idx, r_idx, namespaces \
-                                = self._parse(g, (n_idx, r_idx),
+                        n_idx, r_idx, d_idx, namespaces \
+                                = self._parse(g, (n_idx, r_idx, d_idx),
                                               (nodes, relations,
-                                               datatypes, facts))
+                                               annotations, literals_attr,
+                                               facts))
             else:
                 with parser(path=path, mode='r') as g:
-                    n_idx, r_idx, namespaces\
-                            = self._parse(g, (n_idx, r_idx),
+                    n_idx, r_idx, d_idx, namespaces\
+                            = self._parse(g, (n_idx, r_idx, d_idx),
                                           (nodes, relations,
-                                          datatypes, facts))
+                                           annotations, literals_attr,
+                                           facts))
 
         self.namespaces = namespaces
-        self._parse_vectorize(facts, nodes, relations, datatypes)
+        self._parse_vectorize(facts, nodes, relations,
+                              annotations, literals_attr)
 
-    def _parse(self, g: RDF_Serialization_Format, counters: tuple[int, int],
-               data: tuple[dict, dict, dict, list[list[list[int]]]])\
-            -> tuple[int, int, set[str]]:
+    def _parse(self, g: RDF_Serialization_Format,
+               counters: tuple[int, int, int],
+               data: tuple[dict, dict, dict, dict, list[list[list[int]]]])\
+            -> tuple[int, int, int, set[str]]:
         """ Parse content of graph
 
         Generate indices for nodes, relations, and facts
@@ -160,13 +168,14 @@ class KnowledgeGraph():
         :param g:
         :type g: RDF_Serialization_Format
         :param counters:
-        :type counters: tuple[int, int]
+        :type counters: tuple[int, int, int]
         :param data:
         :type data: tuple[dict, dict, dict, list[list[list[int]]]]
         :rtype: tuple[int, int, set[str]]
         """
-        n_idx, r_idx = counters
-        nodes, relations, datatypes, facts = data
+        n_idx, r_idx, d_idx = counters
+        nodes, relations, annotations, literals_attr, facts = data
+
         namespaces = set()
         for s, p, o in g.parse():
             for e in [s, p, o]:
@@ -200,6 +209,17 @@ class KnowledgeGraph():
                                   o.datatype,
                                   o.language)
 
+                if o.language is not None\
+                        and o.language not in annotations.keys():
+                    annotations[o.language] = d_idx
+
+                    d_idx += 1
+                elif o.datatype is not None\
+                        and o.datatype not in annotations.keys():
+                    annotations[o.datatype] = d_idx
+
+                    d_idx += 1
+
             if o in nodes.keys():
                 o_idx = nodes[o]
             else:
@@ -214,27 +234,30 @@ class KnowledgeGraph():
 
             # save datatype or language tag
             if isinstance(o, UniqueLiteral):
-                if o.language is not None:
-                    datatypes[o_idx] = o.language
-                elif o.datatype is not None:
-                    datatypes[o_idx] = o.datatype
+                if o.language is not None\
+                        and o.language in annotations.keys():
+                    literals_attr[o_idx] = annotations[o.language]
+                elif o.datatype is not None\
+                        and o.datatype in annotations.keys():
+                    literals_attr[o_idx] = annotations[o.datatype]
                 else:
                     # default to string
-                    datatypes[o_idx] = XSD_STRING
+                    literals_attr[o_idx] = annotations[XSD_STRING]
 
-        for dt in set(datatypes.values()):
+        for dt in set(annotations.keys()):
             if type(dt) is not IRIRef:
                 continue
 
             ns, _ = irisplit(dt)
             namespaces.add(ns)
 
-        return n_idx, r_idx, namespaces
+        return n_idx, r_idx, d_idx, namespaces
 
     def _parse_vectorize(self, facts: list[list[list[int]]],
                          nodes: dict[Union[IRIRef, Literal], int],
                          relations: dict[IRIRef, int],
-                         datatypes: dict[int, Union[IRIRef, Literal]]) -> None:
+                         annotations: dict[Union[IRIRef, Literal], int],
+                         literals_attr: dict[int, int]) -> None:
         """ Vectorize graph representation.
 
         :param facts:
@@ -271,4 +294,7 @@ class KnowledgeGraph():
         self.r2i = relations
         self.i2r = np.array(list(self.r2i.keys()))
 
-        self.i2d = datatypes
+        self.a2i = annotations
+        self.i2a = np.array(list(self.a2i.keys()))
+
+        self.ni2ai = literals_attr

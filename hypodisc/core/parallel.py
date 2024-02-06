@@ -390,9 +390,9 @@ def compute_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
         inv_assertion_map = {o_idx: {s_idx_list[i]
                                      for i, idx in enumerate(o_idx_list)
                                      if idx == o_idx} for o_idx in o_idx_list}
-        if o_idx in kg.i2d.keys():
+        if o_idx in kg.ni2ai.keys():
             # object is literal
-            o_type = kg.i2d[o_idx]
+            o_type = kg.i2a[kg.ni2ai[o_idx]]
             var_o = DataTypeVariable(o_type)
 
             pattern = new_var_graph_pattern(root_var, var_o,
@@ -419,9 +419,9 @@ def compute_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
         # the case in well-engineered graphs. See this as an
         # optimization by approximation.
         o_idx = o_idx_list[0]
-        if o_idx in kg.i2d.keys():
+        if o_idx in kg.ni2ai.keys():
             # object is literal
-            o_type = kg.i2d[o_idx]
+            o_type = kg.i2a[kg.ni2ai[o_idx]]
             if o_type in SUPPORTED_XSD_TYPES:
                 o_values = [kg.i2n[i].value for i in o_idx_list]
                 if len(o_values) >= min_support:

@@ -371,9 +371,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                                              enumerate(o_idx_list)
                                              if idx == o_idx}
                                      for o_idx in o_idx_list}
-                if o_idx in kg.i2d.keys():
+                if o_idx in kg.ni2ai.keys():
                     # object is literal
-                    o_type = kg.i2d[o_idx]
+                    o_type = kg.i2a[kg.ni2ai[o_idx]]
                     var_o = DataTypeVariable(o_type)
 
                     pattern = new_var_graph_pattern(root_var, var_o,
@@ -400,9 +400,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                 # the case in well-engineered graphs. See this as an
                 # optimization by approximation.
                 o_idx = o_idx_list[-1]
-                if o_idx in kg.i2d.keys():
+                if o_idx in kg.ni2ai.keys():
                     # object is literal
-                    o_type = kg.i2d[o_idx]
+                    o_type = kg.i2a[kg.ni2ai[o_idx]]
                     if o_type not in SUPPORTED_XSD_TYPES:
                         continue
 
@@ -457,9 +457,9 @@ def infer_type(kg: KnowledgeGraph, rdf_type_idx: int,
     :type node_idx: int
     :rtype: IRIRef
     """
-    if node_idx in kg.i2d.keys():
+    if node_idx in kg.ni2ai.keys():
         # this is a literal node
-        return kg.i2d[node_idx], True
+        return kg.i2a[kg.ni2ai[node_idx]], True
 
     try:
         idx = np.where(kg.A[rdf_type_idx].row == node_idx)
