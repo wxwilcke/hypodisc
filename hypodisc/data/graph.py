@@ -6,9 +6,10 @@ from typing import Optional, Set, Tuple, Union
 from uuid import uuid4
 
 import numpy as np
+import scipy.sparse as sp
 
 from rdf import NTriples, NQuads
-from rdf.terms import IRIRef, Literal, BNode
+from rdf.terms import IRIRef, Literal
 from rdf.namespaces import RDF, RDFS, SKOS, OWL, XSD
 from rdf.formats import RDF_Serialization_Format
 
@@ -17,29 +18,30 @@ from rdf.formats import RDF_Serialization_Format
 XSD_STRING = XSD + "string"
 
 # default prefixes
-DEFAULT_PREFIX_MAP = { OWL.value: 'owl',
-                       RDF.value: 'rdf',
-                       RDFS.value: 'rdfs',
-                       SKOS.value: 'skos',
-                       XSD.value: 'xsd',
-                       "http://purl.org/dc/terms/": 'dct',
-                       "http://www.w3.org/ns/prov#": 'prov'
-}
+DEFAULT_PREFIX_MAP = {OWL.value: 'owl',
+                      RDF.value: 'rdf',
+                      RDFS.value: 'rdfs',
+                      SKOS.value: 'skos',
+                      XSD.value: 'xsd',
+                      "http://purl.org/dc/terms/": 'dct',
+                      "http://www.w3.org/ns/prov#": 'prov'}
 
-def ns2pf(prefix_map:dict[str, str], iri:IRIRef) -> str:
+
+def ns2pf(prefix_map: dict[str, str], iri: IRIRef) -> str:
     ns, name = irisplit(iri)
     if len(prefix_map) <= 0 or ns not in prefix_map.keys():
         return iri
 
     return f"{prefix_map[ns]}:{name}"
 
-def mkprefixes(namespaces:Set[str],
-               custom_prefix_map:Optional[dict[str, str]] = None)\
+
+def mkprefixes(namespaces: Set[str],
+               custom_prefix_map: Optional[dict[str, str]] = None)\
         -> dict[str, str]:
     prefix_map = dict()
 
     # add user-provided set (if any)
-    if  custom_prefix_map is not None:
+    if custom_prefix_map is not None:
         prefix_map.update(custom_prefix_map)
 
     # add other namespaces:
@@ -59,33 +61,37 @@ def mkprefixes(namespaces:Set[str],
 
     return prefix_map
 
-def irisplit(e:IRIRef) -> Tuple[str, str]:
+
+def irisplit(e: IRIRef) -> Tuple[str, str]:
+    i = -1
     for i in range(len(e.value) - 1, 0, -1):
         if e.value[i] in ('/', '#'):
             break
 
     return e.value[:i+1], e.value[i+1:]
 
+
 class UniqueLiteral(Literal):
-    def __init__(self, value:str, datatype:Union[IRIRef,None] = None,
-                 language:Union[str,None] = None) -> None:
-        super().__init__(value = value,
-                         datatype = datatype,
-                         language = language)
+    def __init__(self, value: str, datatype: Union[IRIRef, None] = None,
+                 language: Union[str, None] = None) -> None:
+        super().__init__(value=value,
+                         datatype=datatype,
+                         language=language)
 
         self._uuid = uuid4().hex
 
-    def __eq__(self, other:UniqueLiteral) -> bool:
+    def __eq__(self, other: UniqueLiteral) -> bool:
         return self._uuid == other._uuid
 
     def __hash__(self) -> int:
         return hash(self._uuid)
 
+
 class KnowledgeGraph():
     """ Knowledge Graph stored in vector representation plus query functions
     """
 
-    def __init__(self, rng:np.random.Generator) -> None:
+    def __init__(self, rng: np.random.Generator) -> None:
         """ Knowledge Graph stored in vector representation plus query
             functions
 
@@ -96,7 +102,7 @@ class KnowledgeGraph():
         self._rng = rng
         self.namespaces = set()
 
-    def parse(self, paths:list[str]) -> None:
+    def parse(self, paths: list[str]) -> None:
         """ Parse graph on file level.
 
         Supports plain or gzipped NTriple or NQuad files
@@ -105,16 +111,16 @@ class KnowledgeGraph():
         :type path: list[str]
         :rtype: None
         """
-        nodes = dict()  # entities, blank nodes, and literals
-        relations = dict()  # predicates
-        datatypes = dict()  # datatype or language tag
-        facts = (list(), list(), list())  # graph by index
-        namespaces = set()
+        nodes = dict()  # type: dict[Union[IRIRef,Literal], int]
+        relations = dict()  # type: dict[IRIRef, int]
+        datatypes = dict()  # type: dict[int, Union[IRIRef, str]]
+        facts = list()  # type: list[list[list[int]]]
+        namespaces = set()  # type: set[str]
 
         n_idx, r_idx = 0, 0
         for path in paths:
             parts = path.split('.')
-            is_gzipped = parts[-1] == ".gz"
+            is_gzipped = parts[-1] == "gz"
             suffix = parts[-1] if not is_gzipped else parts[-2]
 
             parser = None
@@ -123,7 +129,7 @@ class KnowledgeGraph():
             elif suffix == "nq":
                 parser = NQuads
             else:
-                raise Exception("Supports graphs in NTriples or NQuads format."\
+                raise Exception("Supports graphs in NTriples or NQuads format."
                                 f" Unsupported format: {suffix}")
 
             if is_gzipped:
@@ -140,14 +146,12 @@ class KnowledgeGraph():
                                           (nodes, relations,
                                           datatypes, facts))
 
-
         self.namespaces = namespaces
         self._parse_vectorize(facts, nodes, relations, datatypes)
 
-    def _parse(self, g:RDF_Serialization_Format, counters:tuple[int, int],
-               data:tuple[dict, dict, dict,
-                          tuple[list[IRIRef], list[IRIRef], list[IRIRef]]])\
-                       -> tuple[int, int, set[str]]:
+    def _parse(self, g: RDF_Serialization_Format, counters: tuple[int, int],
+               data: tuple[dict, dict, dict, list[list[list[int]]]])\
+            -> tuple[int, int, set[str]]:
         """ Parse content of graph
 
         Generate indices for nodes, relations, and facts
@@ -155,7 +159,11 @@ class KnowledgeGraph():
 
         :param g:
         :type g: RDF_Serialization_Format
-        :rtype: None
+        :param counters:
+        :type counters: tuple[int, int]
+        :param data:
+        :type data: tuple[dict, dict, dict, list[list[list[int]]]]
+        :rtype: tuple[int, int, set[str]]
         """
         n_idx, r_idx = counters
         nodes, relations, datatypes, facts = data
@@ -183,6 +191,8 @@ class KnowledgeGraph():
                 p_idx = r_idx
                 relations[p] = p_idx
 
+                facts.append([[], []])
+
                 r_idx += 1
 
             if isinstance(o, Literal):
@@ -199,10 +209,9 @@ class KnowledgeGraph():
                 n_idx += 1
 
             # store s,p,o as indices
-            facts[0].append(p_idx)            
-            facts[1].append(s_idx)            
-            facts[2].append(o_idx)            
- 
+            facts[p_idx][0].append(s_idx)
+            facts[p_idx][1].append(o_idx)
+
             # save datatype or language tag
             if isinstance(o, UniqueLiteral):
                 if o.language is not None:
@@ -216,22 +225,22 @@ class KnowledgeGraph():
         for dt in set(datatypes.values()):
             if type(dt) is not IRIRef:
                 continue
-            
+
             ns, _ = irisplit(dt)
             namespaces.add(ns)
 
         return n_idx, r_idx, namespaces
 
-    def _parse_vectorize(self,
-                         facts:tuple[list[IRIRef], list[IRIRef], list[IRIRef]],
-                         nodes:dict[IRIRef, int], relations:dict[IRIRef, int],
-                         datatypes:dict[int, Union[IRIRef, Literal]]) -> None:
+    def _parse_vectorize(self, facts: list[list[list[int]]],
+                         nodes: dict[Union[IRIRef, Literal], int],
+                         relations: dict[IRIRef, int],
+                         datatypes: dict[int, Union[IRIRef, Literal]]) -> None:
         """ Vectorize graph representation.
 
         :param facts:
-        :type facts: tuple[List[IRIRef], List[IRIRef], List[IRIRef]]
+        :type facts: list[list[list[int]]]
         :param nodes:
-        :type nodes: dict[IRIRef, int]
+        :type nodes: dict[Union[IRIRef, Literal], int]
         :param relations:
         :type relations: dict[IRIRef, int]
         :param datatypes:
@@ -239,12 +248,21 @@ class KnowledgeGraph():
         :rtype: None
         """
         # statistics
+        self.num_facts = 0
         self.num_nodes = len(nodes)
         self.num_relations = len(relations)
 
-        self.A = np.zeros((self.num_relations, self.num_nodes, self.num_nodes),
-                          dtype=bool)
-        self.A[facts] = True
+        self.A = list()
+        for p_idx in sorted(relations.values()):
+            n = len(facts[p_idx][0])
+            data = np.ones(n, dtype=bool)
+            self.A.append(sp.coo_array((data, (facts[p_idx][0],
+                                               facts[p_idx][1])),
+                                       shape=(self.num_nodes,
+                                              self.num_nodes),
+                                       dtype=bool))
+
+            self.num_facts += n
 
         # lookup and reverse lookup tables
         self.n2i = nodes
@@ -254,5 +272,3 @@ class KnowledgeGraph():
         self.i2r = np.array(list(self.r2i.keys()))
 
         self.i2d = datatypes
-
-

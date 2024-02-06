@@ -35,7 +35,7 @@ from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
 IGNORE_PREDICATES = {RDF + 'type', RDFS + 'label'}
 
 def init_lock(plock:Lock) -> None:
-    """ 
+    """
     Initiate a global variable lock
 
     :param plock:
@@ -43,14 +43,15 @@ def init_lock(plock:Lock) -> None:
     global lock
     lock = plock
 
-def generate(rng:np.random.Generator, kg:KnowledgeGraph,
-             depths:range, min_support:int,
-             p_explore:float, p_extend:float,
-             max_length:int, max_width:int,
-             multimodal:bool, out_writer:Optional[NTriples],
-             out_prefix_map:Optional[dict[str,str]],
-             out_ns:Optional[IRIRef],
-             mode:Literal["A", "T", "AT"]) -> None: 
+
+def generate(rng: np.random.Generator, kg: KnowledgeGraph,
+             depths: range, min_support: int,
+             p_explore: float, p_extend: float,
+             max_length: int, max_width: int,
+             multimodal: bool, out_writer: Optional[NTriples],
+             out_prefix_map: Optional[dict[str, str]],
+             out_ns: Optional[IRIRef],
+             mode: Literal["A", "T", "AT"]) -> None:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
 
@@ -103,9 +104,9 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                                                    root_patterns, pattern,
                                                    depth, p_explore, p_extend,
                                                    mode, visited)
-                               for pattern in parents[name]
-                               if len(pattern) < max_length
-                               and pattern.width() < max_width]
+                                   for pattern in parents[name]
+                                   if len(pattern) < max_length
+                                   and pattern.width() < max_width]
 
                     fextensions = list()
                     for fcandidate in cf.as_completed(fcandidates):
@@ -122,20 +123,23 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                         extensions = fextension.result()
                         derivatives[name] |= extensions
 
-                        if out_writer is not None and out_prefix_map is not None:
+                        if out_writer is not None\
+                                and out_prefix_map is not None:
                             for pattern in extensions:
                                 num_patterns = write_query(out_writer, pattern,
-                                                           num_patterns, out_ns,
+                                                           num_patterns,
+                                                           out_ns,
                                                            out_prefix_map)
 
                 print("(+{} discovered)".format(len(derivatives[name])))
 
             # omit exhausted classes from next iteration
-            parents = {k:v for k,v in derivatives.items()
+            parents = {k: v for k, v in derivatives.items()
                        if len(v) > 0}
 
         duration = time()-t0
-        print('discovered {} patterns in {:0.3f}s'.format(num_patterns, duration),
+        print('discovered {} patterns in {:0.3f}s'.format(num_patterns,
+                                                          duration),
               end="")
 
         if npruned > 0:
@@ -143,10 +147,11 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
         else:
             print()
 
-def compute_candidates(root_patterns:dict, pattern:GraphPattern, depth:int, 
-                       p_explore:float, p_extend:float,
-                       mode:Literal["A", "AT", "T"], visited:ListProxy)\
-                               -> tuple[GraphPattern,set]:
+
+def compute_candidates(root_patterns: dict, pattern: GraphPattern, depth: int,
+                       p_explore: float, p_extend: float,
+                       mode: Literal["A", "AT", "T"], visited: ListProxy)\
+                               -> tuple[GraphPattern, set]:
     """ Compute and return all candidates for this pattern.
 
     :param root_patterns:
@@ -168,11 +173,11 @@ def compute_candidates(root_patterns:dict, pattern:GraphPattern, depth:int,
     if depth <= 0:
         endpoints = {pattern.root}
     else:
-       # Gather candidate endpoints at this depth.
-       # Only consider unbound object type variables since we
-       # cannot connect to literals or data type variables, and
-       # bound entities already have a fixed context.
-       endpoints = {a.rhs for a in pattern.distances[depth-1]
+        # Gather candidate endpoints at this depth.
+        # Only consider unbound object type variables since we
+        # cannot connect to literals or data type variables, and
+        # bound entities already have a fixed context.
+        endpoints = {a.rhs for a in pattern.distances[depth-1]
                      if isinstance(a.rhs, ObjectTypeVariable)}
 
     candidates = set()
@@ -187,7 +192,7 @@ def compute_candidates(root_patterns:dict, pattern:GraphPattern, depth:int,
 
         # Gather all candidate extensions that can connect
         # to an object type variable of the relevant type.
-        for base_pattern in root_patterns[endpoint.value]:                            
+        for base_pattern in root_patterns[endpoint.value]:
             if p_extend < random():
                 # skip this extension with probability p_extend
                 continue
@@ -226,14 +231,15 @@ def compute_candidates(root_patterns:dict, pattern:GraphPattern, depth:int,
 
     return pattern, candidates
 
-def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
-                       min_support:float, mode:Literal["A", "AT", "T"],
-                       multimodal:bool) -> dict[str,list]:
+
+def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
+                       min_support: float, mode: Literal["A", "AT", "T"],
+                       multimodal: bool) -> dict[str, list]:
     """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
     :type rng: np.random.Generator
-    :param kg: 
+    :param kg:
     :type kg: KnowledgeGraph
     :param min_support:
     :type min_support: float
@@ -249,12 +255,15 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
 
     rdf_type = RDF + "type"
     rdf_type_idx = kg.r2i[rdf_type]
-    class_freq = kg.A[rdf_type_idx].sum(axis=0)
-    class_idx_list = np.where(class_freq > 0)[0]
-    for class_idx in class_idx_list:
-        # if the number of type instances do not exceed the minimal support then
-        # any pattern of this type will not either
-        support = class_freq[class_idx]
+
+    A_type = kg.A[rdf_type_idx]
+
+    class_idx_list = sorted(list(set(A_type.col)))
+    class_freq = A_type.sum(axis=0)[class_idx_list]
+    for class_i, class_idx in enumerate(class_idx_list):
+        # if the number of type instances do not exceed the minimal support
+        # then any pattern of this type will not either
+        support = class_freq[class_i]
         if support < min_support:
             continue
 
@@ -263,21 +272,19 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
 
         print(f" type {class_name}...", end='')
 
-        # find all members of this class, retrieve all their predicate-objects
-        class_members = kg.A[rdf_type_idx, :, class_idx]
-        class_members_idx = np.where(class_members)[0]
-        class_members_po = kg.A[:, class_members, :]
+        # find all members of this class
+        class_members_idx = A_type.row[A_type.col == class_idx]
 
         root_var = ObjectTypeVariable(class_name)
         with cf.ProcessPoolExecutor() as executor:
             futures = [executor.submit(compute_root_patterns, rng, kg,
                                        min_support, mode, multimodal, p_idx,
                                        rdf_type_idx, root_var,
-                                       class_members_po,
                                        class_members_idx)
                        for p_idx in range(kg.num_relations)
                        if p_idx != rdf_type_idx
-                       and class_members_po[p_idx].sum() >= min_support]
+                       and len(set(kg.A[p_idx].row) &
+                               set(class_members_idx)) >= min_support]
 
             for future in cf.as_completed(futures):
                 root_patterns[class_name] |= future.result()
@@ -290,12 +297,12 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
 
     return root_patterns
 
-def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
-                          min_support:float, mode:Literal["A", "AT", "T"],
-                          multimodal:bool, p_idx:int, rdf_type_idx:int,
-                          root_var:ObjectTypeVariable,
-                          class_members_po:np.ndarray,
-                          class_members_idx:np.ndarray) -> set[GraphPattern]:
+
+def compute_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
+                          min_support: float, mode: Literal["A", "AT", "T"],
+                          multimodal: bool, p_idx: int, rdf_type_idx: int,
+                          root_var: ObjectTypeVariable,
+                          class_members_idx: np.ndarray) -> set[GraphPattern]:
     """ Compute all root patterns with this predicate.
 
     :param rng:
@@ -314,8 +321,6 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
     :type rdf_type_idx: int
     :param root_var:
     :type root_var: ObjectTypeVariable
-    :param class_members_po:
-    :type class_members_po: np.ndarray
     :param class_members_idx:
     :type class_members_idx: np.ndarray
     :rtype: set[GraphPattern]
@@ -332,20 +337,29 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
 
     root_patterns = set()
 
+    # list of global indices for class members with this property
+    s_idx_list = sorted(list(set(kg.A[p_idx].row) &
+                             set(class_members_idx)))
+
+    # list of global indices for corresponding tail nodes
+    o_idx_list = kg.A[p_idx].col[np.isin(kg.A[p_idx].row, s_idx_list)]
+
+    # infer (data) type from single tail node (assume rest is same)
+    o_type, is_literal = infer_type(kg, rdf_type_idx, o_idx_list[-1])
+
     # create graph_patterns for all predicate-object pairs
     # treat both entities and literals as node
-    s_idx_list, o_idx_list = np.where(class_members_po[p_idx] == True)
-    s_idx_list = class_members_idx[s_idx_list]
-    o_type, is_literal = infer_type(kg, rdf_type_idx, o_idx_list[-1])
     if generate_Abox:
         if multimodal and is_literal:
             o_freqs = Counter([kg.i2n[i].value for i in o_idx_list])
-            o_value_idx_map = {v:{i for i, o_idx in enumerate(o_idx_list)
-                                  if kg.i2n[o_idx].value == v} for v in o_freqs.keys()}    
+            o_value_idx_map = {v: {i for i, o_idx in enumerate(o_idx_list)
+                                   if kg.i2n[o_idx].value == v}
+                               for v in o_freqs.keys()}
         else:  # is IRI
             o_freqs = Counter(o_idx_list)
-            o_value_idx_map = {kg.i2n[k]:{i for i, o_idx in enumerate(o_idx_list)
-                                  if k == o_idx} for k in o_freqs.keys()}
+            o_value_idx_map = {kg.i2n[k]:
+                               {i for i, o_idx in enumerate(o_idx_list)
+                                if k == o_idx} for k in o_freqs.keys()}
 
         for o_value, o_freq in o_freqs.items():
             if o_freq < min_support:
@@ -355,15 +369,15 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
                 o_value = kg.i2n[o_value]
 
             domain = {s_idx_list[i] for i in o_value_idx_map[o_value]}
-            inv_assertion_map = {o_idx_list[i]: domain for i in o_value_idx_map[o_value]}
-            
+            inv_assertion_map = {o_idx_list[i]: domain
+                                 for i in o_value_idx_map[o_value]}
+
             # create new graph_pattern
             pattern = new_graph_pattern(root_var, p, o_value,
                                         o_type, domain, inv_assertion_map)
-            
+
             if pattern is not None and pattern.support >= min_support:
                 root_patterns.add(pattern)
-                    
 
     # add graph_patterns with variables as objects
     if generate_Tbox:
@@ -373,7 +387,8 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
         # optimization by approximation.
         pattern = None
         o_idx = o_idx_list[0]
-        inv_assertion_map = {o_idx: {s_idx_list[i] for i, idx in enumerate(o_idx_list)
+        inv_assertion_map = {o_idx: {s_idx_list[i]
+                                     for i, idx in enumerate(o_idx_list)
                                      if idx == o_idx} for o_idx in o_idx_list}
         if o_idx in kg.i2d.keys():
             # object is literal
@@ -381,18 +396,19 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
             var_o = DataTypeVariable(o_type)
 
             pattern = new_var_graph_pattern(root_var, var_o,
-                                              set(s_idx_list), p,
-                                              inv_assertion_map)
+                                            set(s_idx_list), p,
+                                            inv_assertion_map)
         else:
             # object is entity (or bnode or literal without type)
-            o_type_idx = np.where(kg.A[rdf_type_idx, o_idx, :])[0]
+            idx = np.where(kg.A[rdf_type_idx].row == o_idx)
+            o_type_idx = kg.A[rdf_type_idx].col[idx]
             if len(o_type_idx) > 0:
                 o_type = kg.i2n[o_type_idx[0]]
                 var_o = ObjectTypeVariable(o_type)
 
                 pattern = new_var_graph_pattern(root_var, var_o,
-                                                  set(s_idx_list), p,
-                                                  inv_assertion_map)
+                                                set(s_idx_list), p,
+                                                inv_assertion_map)
 
         if pattern is not None and pattern.support >= min_support:
             root_patterns.add(pattern)
@@ -404,7 +420,7 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
         # optimization by approximation.
         o_idx = o_idx_list[0]
         if o_idx in kg.i2d.keys():
-            # object is literal                    
+            # object is literal
             o_type = kg.i2d[o_idx]
             if o_type in SUPPORTED_XSD_TYPES:
                 o_values = [kg.i2n[i].value for i in o_idx_list]
@@ -424,13 +440,14 @@ def compute_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
                             var_o = MultiModalStringVariable(o_type, cluster)
 
                         domain = {os_idx_map[i] for i in members}
-                        inv_assertion_map = {o_idx:domain for o_idx in members}
+                        inv_assertion_map = {o_idx:
+                                             domain for o_idx in members}
                         pattern = new_mm_graph_pattern(root_var, var_o,
                                                        domain, p,
                                                        inv_assertion_map)
 
                         if pattern is not None\
-                            and pattern.support >= min_support:
+                                and pattern.support >= min_support:
                             root_patterns.add(pattern)
 
     return root_patterns

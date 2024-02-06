@@ -9,7 +9,7 @@ import numpy as np
 from hypodisc.data.utils import write_query
 
 from rdf.formats import NTriples
-from rdf.namespaces import RDF, RDFS, XSD
+from rdf.namespaces import RDF, RDFS
 from rdf.terms import IRIRef
 from rdf.terms import Literal as rdfLiteral
 
@@ -31,14 +31,14 @@ from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
 IGNORE_PREDICATES = {RDF + 'type', RDFS + 'label'}
 
 
-def generate(rng:np.random.Generator, kg:KnowledgeGraph,
-             depths:range, min_support:int,
-             p_explore:float, p_extend:float,
-             max_length:int, max_width:int,
-             multimodal:bool, out_writer:Optional[NTriples],
-             out_prefix_map:Optional[dict[str,str]],
-             out_ns:Optional[IRIRef],
-             mode:Literal["A", "T", "AT"]) -> None: 
+def generate(rng: np.random.Generator, kg: KnowledgeGraph,
+             depths: range, min_support: int,
+             p_explore: float, p_extend: float,
+             max_length: int, max_width: int,
+             multimodal: bool, out_writer: Optional[NTriples],
+             out_prefix_map: Optional[dict[str, str]],
+             out_ns: Optional[IRIRef],
+             mode: Literal["A", "T", "AT"]) -> None:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
 
@@ -85,7 +85,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
             for pattern in parents[name]:
                 if len(pattern) >= max_length or pattern.width() >= max_width:
                     continue
-                    
+
                 # Gather candidate endpoints at this depth.
                 # Only consider unbound object type variables since we
                 # cannot connect to literals or data type variables, and
@@ -108,7 +108,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 
                     # Gather all candidate extensions that can connect
                     # to an object type variable of the relevant type.
-                    for base_pattern in root_patterns[endpoint.value]:                            
+                    for base_pattern in root_patterns[endpoint.value]:
                         if p_extend < random():
                             # skip this extension with probability p_extend
                             continue
@@ -116,7 +116,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                         # get base assertion
                         extension = base_pattern.assertion
 
-                        # prune                   
+                        # prune
                         if pattern.contains_at_depth(extension, depth):
                             continue
 
@@ -126,7 +126,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
                         if pattern_hash in visited:
                             continue
                         visited.add(pattern_hash)
-                            
+
                         if "T" not in mode\
                                 and isinstance(extension.rhs,
                                                TypeVariable):
@@ -140,12 +140,11 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
 
                         candidates.add((endpoint, extension))
 
-
                     extensions = explore(pattern,
-                                         candidates = candidates,
-                                         max_length = max_length,
-                                         max_width = max_width,
-                                         min_support = min_support)
+                                         candidates=candidates,
+                                         max_length=max_length,
+                                         max_width=max_width,
+                                         min_support=min_support)
 
                     if out_writer is not None and out_prefix_map is not None:
                         for pattern in extensions:
@@ -158,7 +157,7 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
             print("(+{} discovered)".format(len(derivatives[name])))
 
         # omit exhausted classes from next iteration
-        parents = {k:v for k,v in derivatives.items()
+        parents = {k: v for k, v in derivatives.items()
                    if len(v) > 0}
 
     duration = time()-t0
@@ -170,8 +169,9 @@ def generate(rng:np.random.Generator, kg:KnowledgeGraph,
     else:
         print()
 
-def explore(parent:GraphPattern, candidates:set,
-            max_length:int, max_width:int, min_support:int) -> set:
+
+def explore(parent: GraphPattern, candidates: set,
+            max_length: int, max_width: int, min_support: int) -> set:
     """ Explore all predicate-object pairs which where added by the previous
     iteration as possible endpoints to expand from.
 
@@ -192,7 +192,7 @@ def explore(parent:GraphPattern, candidates:set,
     with Manager() as manager:
         qexplore = manager.Queue()
         qexplore.put(parent)
-        
+
         while not qexplore.empty():
             pattern = qexplore.get()
 
@@ -221,7 +221,8 @@ def explore(parent:GraphPattern, candidates:set,
 
     return derivatives
 
-def extend(pattern:GraphPattern, endpoint:Variable, extension:Assertion)\
+
+def extend(pattern: GraphPattern, endpoint: Variable, extension: Assertion)\
         -> GraphPattern:
     """ Extend a graph_pattern from a given endpoint variable by evaluating all
     possible candidate extensions on whether they satisfy the minimal support
@@ -247,14 +248,15 @@ def extend(pattern:GraphPattern, endpoint:Variable, extension:Assertion)\
 
     return pattern_new
 
-def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
-                       min_support:float, mode:Literal["A", "AT", "T"],
-                       multimodal:bool) -> dict[str,list]:
+
+def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
+                       min_support: float, mode: Literal["A", "AT", "T"],
+                       multimodal: bool) -> dict[str, list]:
     """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
     :type rng: np.random.Generator
-    :param kg: 
+    :param kg:
     :type kg: KnowledgeGraph
     :param min_support:
     :type min_support: float
@@ -276,17 +278,17 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
     if "T" in mode:
         generate_Tbox = True
 
-    # root node of graph pattern
-    #root_var = Variable(IRIRef("graph://root"))
-
     rdf_type = RDF + "type"
     rdf_type_idx = kg.r2i[rdf_type]
-    class_freq = kg.A[rdf_type_idx].sum(axis=0)
-    class_idx_list = np.where(class_freq > 0)[0]
-    for class_idx in class_idx_list:
-        # if the number of type instances do not exceed the minimal support then
-        # any pattern of this type will not either
-        support = class_freq[class_idx]
+
+    A_type = kg.A[rdf_type_idx]
+
+    class_idx_list = sorted(list(set(A_type.col)))
+    class_freq = A_type.sum(axis=0)[class_idx_list]
+    for class_i, class_idx in enumerate(class_idx_list):
+        # if the number of type instances do not exceed the minimal support
+        # then any pattern of this type will not either
+        support = class_freq[class_i]
         if support < min_support:
             continue
 
@@ -295,58 +297,67 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
 
         print(f" type {class_name}...", end='')
 
-        # find all members of this class, retrieve all their predicate-objects
-        class_members = kg.A[rdf_type_idx, :, class_idx]
-        class_members_idx = np.where(class_members)[0]
-        class_members_po = kg.A[:, class_members, :]
+        # find all members of this class,
+        class_members_idx = A_type.row[A_type.col == class_idx]
 
         root_var = ObjectTypeVariable(class_name)
         for p_idx in range(kg.num_relations):
             if p_idx == rdf_type_idx:
                 continue
-            
-            p_freq = class_members_po[p_idx].sum()
+
+            # list of global indices for class members with this property
+            s_idx_list = sorted(list(set(kg.A[p_idx].row) &
+                                     set(class_members_idx)))
+
+            p_freq = len(s_idx_list)
             if p_freq < min_support:
                 # if the number of entities of type t that have this predicate
                 # is less than the minimal support, then the overall pattern
                 # will have less as well
                 continue
-       
+
             p = kg.i2r[p_idx]
+
+            # list of global indices for corresponding tail nodes
+            o_idx_list = kg.A[p_idx].col[np.isin(kg.A[p_idx].row, s_idx_list)]
+
+            # infer (data) type from single tail node (assume rest is same)
+            o_type, is_literal = infer_type(kg, rdf_type_idx, o_idx_list[-1])
 
             # create graph_patterns for all predicate-object pairs
             # treat both entities and literals as node
-            s_idx_list, o_idx_list = np.where(class_members_po[p_idx] == True)
-            s_idx_list = class_members_idx[s_idx_list]
-            o_type, is_literal = infer_type(kg, rdf_type_idx, o_idx_list[-1])
             if generate_Abox:
                 if multimodal and is_literal:
                     o_freqs = Counter([kg.i2n[i].value for i in o_idx_list])
-                    o_value_idx_map = {v:{i for i, o_idx in enumerate(o_idx_list)
-                                          if kg.i2n[o_idx].value == v} for v in o_freqs.keys()}    
-                else:  # is IRI
+                    o_value_idx_map = {v:
+                                       {i for i, o_idx in enumerate(o_idx_list)
+                                        if kg.i2n[o_idx].value == v}
+                                       for v in o_freqs.keys()}
+                else:  # if IRI
                     o_freqs = Counter(o_idx_list)
-                    o_value_idx_map = {kg.i2n[k]:{i for i, o_idx in enumerate(o_idx_list)
-                                          if k == o_idx} for k in o_freqs.keys()}
-    
+                    o_value_idx_map = {kg.i2n[k]:
+                                       {i for i, o_idx in enumerate(o_idx_list)
+                                        if k == o_idx} for k in o_freqs.keys()}
+
                 for o_value, o_freq in o_freqs.items():
                     if o_freq < min_support:
                         continue
-    
+
                     if not is_literal:
                         o_value = kg.i2n[o_value]
 
                     domain = {s_idx_list[i] for i in o_value_idx_map[o_value]}
-                    inv_assertion_map = {o_idx_list[i]: domain for i in o_value_idx_map[o_value]}
-                    
+                    inv_assertion_map = {o_idx_list[i]: domain
+                                         for i in o_value_idx_map[o_value]}
+
                     # create new graph_pattern
                     pattern = new_graph_pattern(root_var, p, o_value,
-                                                o_type, domain, inv_assertion_map)
-                    
+                                                o_type, domain,
+                                                inv_assertion_map)
+
                     if pattern is not None and pattern.support >= min_support:
                         root_patterns[class_name].append(pattern)
-                            
-    
+
             # add graph_patterns with variables as objects
             if generate_Tbox:
                 # assume that all objects linked by the same relation are of
@@ -355,46 +366,50 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
                 # optimization by approximation.
                 pattern = None
                 o_idx = o_idx_list[0]
-                inv_assertion_map = {o_idx: {s_idx_list[i] for i, idx in enumerate(o_idx_list)
-                                             if idx == o_idx} for o_idx in o_idx_list}
+                inv_assertion_map = {o_idx: {s_idx_list[i]
+                                             for i, idx in
+                                             enumerate(o_idx_list)
+                                             if idx == o_idx}
+                                     for o_idx in o_idx_list}
                 if o_idx in kg.i2d.keys():
                     # object is literal
                     o_type = kg.i2d[o_idx]
                     var_o = DataTypeVariable(o_type)
-    
+
                     pattern = new_var_graph_pattern(root_var, var_o,
-                                                      set(s_idx_list), p,
-                                                      inv_assertion_map)
+                                                    set(s_idx_list), p,
+                                                    inv_assertion_map)
                 else:
                     # object is entity (or bnode or literal without type)
-                    o_type_idx = np.where(kg.A[rdf_type_idx, o_idx, :])[0]
+                    idx = np.where(A_type.row == o_idx)
+                    o_type_idx = A_type.col[idx]
                     if len(o_type_idx) > 0:
                         o_type = kg.i2n[o_type_idx[0]]
                         var_o = ObjectTypeVariable(o_type)
-    
+
                         pattern = new_var_graph_pattern(root_var, var_o,
-                                                          set(s_idx_list), p,
-                                                          inv_assertion_map)
-    
+                                                        set(s_idx_list), p,
+                                                        inv_assertion_map)
+
                 if pattern is not None and pattern.support >= min_support:
                     root_patterns[class_name].append(pattern)
-    
+
             if multimodal:
                 # assume that all objects linked by the same relation are of
                 # the same type. This may not always be true but it is usually
                 # the case in well-engineered graphs. See this as an
                 # optimization by approximation.
-                o_idx = o_idx_list[0]
+                o_idx = o_idx_list[-1]
                 if o_idx in kg.i2d.keys():
-                    # object is literal                    
+                    # object is literal
                     o_type = kg.i2d[o_idx]
                     if o_type not in SUPPORTED_XSD_TYPES:
                         continue
-    
+
                     o_values = [kg.i2n[i].value for i in o_idx_list]
                     if len(o_values) < min_support:
-                        # if the full set does not exceed the threshold then nor
-                        # will subsets thereof
+                        # if the full set does not exceed the threshold then
+                        # nor will subsets thereof
                         continue
 
                     os_idx_map = dict(zip(o_idx_list, s_idx_list))
@@ -408,15 +423,16 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
                             var_o = MultiModalNumericVariable(o_type, cluster)
                         else:  # treat as strings
                             var_o = MultiModalStringVariable(o_type, cluster)
-    
+
                         domain = {os_idx_map[i] for i in members}
-                        inv_assertion_map = {o_idx:domain for o_idx in members}
+                        inv_assertion_map = {o_idx: domain
+                                             for o_idx in members}
                         pattern = new_mm_graph_pattern(root_var, var_o,
                                                        domain, p,
                                                        inv_assertion_map)
-    
+
                         if pattern is not None\
-                            and pattern.support >= min_support:
+                                and pattern.support >= min_support:
                             root_patterns[class_name].append(pattern)
 
         tree_size = len(root_patterns[class_name])
@@ -427,8 +443,9 @@ def init_root_patterns(rng:np.random.Generator, kg:KnowledgeGraph,
 
     return root_patterns
 
-def infer_type(kg:KnowledgeGraph, rdf_type_idx:int,
-               node_idx:int) -> tuple[Union[IRIRef, str], bool]:
+
+def infer_type(kg: KnowledgeGraph, rdf_type_idx: int,
+               node_idx: int) -> tuple[Union[IRIRef, str], bool]:
     """ Infer the (data) type or language tag of a resource. Defaults to
         rdfs:Class if none can be inferred.
 
@@ -445,14 +462,18 @@ def infer_type(kg:KnowledgeGraph, rdf_type_idx:int,
         return kg.i2d[node_idx], True
 
     try:
-        iri = kg.i2n[kg.A[rdf_type_idx, node_idx, :]][0]
-    except:
+        idx = np.where(kg.A[rdf_type_idx].row == node_idx)
+        class_idx = kg.A[rdf_type_idx].col[idx][0]
+        iri = kg.i2n[class_idx]
+    except IndexError:
         iri = RDFS + "Class"
 
     return iri, False
 
-def new_graph_pattern(root_var, p:IRIRef, o_value:Union[IRIRef,rdfLiteral], o_type:IRIRef,
-                      domain:set, inv_assertion_map:dict[int,set[int]]) -> GraphPattern:
+
+def new_graph_pattern(root_var, p: IRIRef, o_value: Union[IRIRef, rdfLiteral],
+                      o_type: IRIRef, domain: set,
+                      inv_assertion_map: dict[int, set[int]]) -> GraphPattern:
     """ Create a new graph_pattern and compute members and metrics
 
     :param kg:
@@ -472,17 +493,19 @@ def new_graph_pattern(root_var, p:IRIRef, o_value:Union[IRIRef,rdfLiteral], o_ty
     """
     assertion = Assertion(root_var, p, ResourceWrapper(o_value, o_type))
     assertion._inv_idx_map = inv_assertion_map
-    
+
     graph_pattern = GraphPattern({assertion})
     graph_pattern.domain = domain
     graph_pattern.support = len(graph_pattern.domain)
-  
-    return graph_pattern 
-    
-def new_var_graph_pattern(root_var, 
-                  var_o:Union[ObjectTypeVariable, DataTypeVariable], 
-                  domain:set, p:IRIRef, 
-                  inv_assertion_map:dict[int,set[int]]) -> GraphPattern:
+
+    return graph_pattern
+
+
+def new_var_graph_pattern(root_var,
+                          var_o: Union[ObjectTypeVariable, DataTypeVariable],
+                          domain: set, p: IRIRef,
+                          inv_assertion_map: dict[int, set[int]])\
+                                  -> GraphPattern:
     """ Create a new variable graph_pattern and compute members and metrics
 
     :param kg:
@@ -505,7 +528,7 @@ def new_var_graph_pattern(root_var,
     # this may not always be true but usually it is
     assertion = Assertion(root_var, p, var_o)
     assertion._inv_idx_map = inv_assertion_map
-    
+
     graph_pattern = GraphPattern({assertion})
     graph_pattern.domain = domain
     graph_pattern.support = len(graph_pattern.domain)
@@ -513,9 +536,10 @@ def new_var_graph_pattern(root_var,
     return graph_pattern
 
 
-def new_mm_graph_pattern(root_var, 
-                 var_o:Union[ObjectTypeVariable, DataTypeVariable], 
-                         domain:set, p:IRIRef, inv_assertion_map:dict[int,set[int]])\
+def new_mm_graph_pattern(root_var,
+                         var_o: Union[ObjectTypeVariable, DataTypeVariable],
+                         domain: set, p: IRIRef,
+                         inv_assertion_map: dict[int, set[int]])\
                          -> GraphPattern:
     """ Create a new multimodal graph_pattern and compute members and metrics
 
@@ -544,5 +568,4 @@ def new_mm_graph_pattern(root_var,
     graph_pattern.domain = domain
     graph_pattern.support = len(graph_pattern.domain)
 
-
-    return graph_pattern 
+    return graph_pattern
