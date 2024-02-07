@@ -4,6 +4,7 @@ import argparse
 import logging
 from datetime import datetime
 from getpass import getuser
+import importlib.metadata
 from os import access, getcwd, R_OK, W_OK
 from os.path import isdir, isfile
 from pathlib import Path
@@ -18,14 +19,12 @@ from rdf.terms import IRIRef, Literal
 from hypodisc.core.sequential import generate as generate_seq
 from hypodisc.core.parallel import generate as generate_mp
 from hypodisc.core.utils import (floatProbabilityArg, strNamespaceArg,
-                                 integerRangeArg,
-                                 read_version, rng_set_seed)
+                                 integerRangeArg, rng_set_seed)
 from hypodisc.data.graph import KnowledgeGraph, mkprefixes
 from hypodisc.data.utils import mkfile, UnsupportedSerializationFormat
 
-
-PYPROJECTS_PATH = getcwd() + "/pyproject.toml"
-VERSION = read_version(PYPROJECTS_PATH)
+__package__ = "hypodisc"
+__version__ = importlib.metadata.version(__package__)
 
 OUTPUT_NAME = "out"
 OUTPUT_EXT = ".nt"
@@ -95,7 +94,7 @@ def write_metadata(f_out:NTriples, graph_label:IRIRef,
     f_out.write((task, DCT+"description", task_description))
 
     f_out.write((implementation, RDF+"type", MLS+"Implementation"))
-    version = Literal(f"Version {VERSION}", datatype = XSD+"string")
+    version = Literal(f"Version {__version__}", datatype = XSD+"string")
     f_out.write((implementation, MLS+"ImplementationCharacteristic", version))
 
     # which input files
@@ -142,7 +141,7 @@ def setup_logger(verbose:bool) -> None:
 if __name__ == "__main__":
     timestamp = int(time())
 
-    parser = argparse.ArgumentParser(prog="HypoDisc")
+    parser = argparse.ArgumentParser(prog=__package__)
     parser.add_argument("-d", "--depth", help="Depths to explore. Takes a "
                         + "range 'from:to', or a shorthand ':to' or 'to' if "
                         + "all depths up to that point are to be considered.",
@@ -187,7 +186,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", "-v", help="Print debug messages and "
                         " warnings", action="store_true")
     parser.add_argument("--version", action="version",
-                        version=f"%(prog)s {VERSION}")
+                        version=f"%(prog)s v{__version__}")
     args = parser.parse_args()
 
     setup_logger(args.verbose)

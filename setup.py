@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 from setuptools import setup
+import toml
 
 
-version = '0.1.0'
+METADATA_FILE = "pyproject.py"
 
 
 def readme():
@@ -11,20 +12,20 @@ def readme():
         return f.read()
 
 
+metadata = toml.load(METADATA_FILE)
+
+
 setup(
-    name='hypodisc',
-    version=version,
-    author='Xander Wilcke',
-    author_email='w.x.wilcke@vu.nl',
-    url='https://wxwilcke.gitlab.io/hypodisc',
-    install_requires=['pyRDF >= 2.3.0', 'numpy', 'scipy', 'flask',
-                      'scikit-learn', 'toml', 'typing_extensions'],
-    download_url=('https://gitlab.com/wxwilcke/hypodisc/-/archive/' + version
-                  + '/hypodisc-' + version + '.tar.gz'),
-    description='Hypothesis Discovery on RDF Knowledge Graphs',
+    name=metadata['project']['name'],
+    version=metadata['project']['version'],
+    author=metadata['project']['authors'][-1]['name'],
+    author_email=metadata['project']['authors'][-1]['email'],
+    url=metadata['project']['urls']['Homepage'],
+    install_requires=metadata['project']['dependencies'],
+    description=metadata['project']['description'],
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
     license='GLP3',
-    keywords=["rdf", "knowledge graphs", "pattern discovery", "hypothesis generation"],
-    python_requires='>=3.9',
+    keywords=metadata['project']['keywords'],
+    python_requires=metadata['project']['requires-python'],
 )
