@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from getpass import getuser
 import importlib.metadata
+from multiprocessing import cpu_count
 from os import access, getcwd, R_OK, W_OK
 from os.path import isdir, isfile
 from pathlib import Path
@@ -17,7 +18,9 @@ from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef, Literal
 
 from hypodisc.core.sequential import generate as generate_seq
+from hypodisc.core.sequential import init_root_patterns as init_seq
 from hypodisc.core.parallel import generate as generate_mp
+from hypodisc.core.parallel import init_root_patterns as init_mp
 from hypodisc.core.utils import (floatProbabilityArg, strNamespaceArg,
                                  integerRangeArg, rng_set_seed)
 from hypodisc.data.graph import KnowledgeGraph, mkprefixes
@@ -192,8 +195,8 @@ if __name__ == "__main__":
     setup_logger(args.verbose)
 
     # print user-provided arguments
-    logging.debug("Arguments: " + "; ".join(["{}: {}".format(k,v)
-                  for k,v in vars(args).items()]))
+    logging.debug("Arguments: " + "; ".join(["{}: {}".format(k, v)
+                  for k, v in vars(args).items()]))
 
     # initialize random number generator
     rng = rng_set_seed(args.seed)
@@ -202,18 +205,17 @@ if __name__ == "__main__":
         raise Warning("A minimal support less than or equal to 1 is unlikely "
                       "to yield interesting patterns (if any).")
 
-    # validate paths 
+    # validate paths
     for filename in args.input:
-        if not isfile(filename): 
+        if not isfile(filename):
             raise FileNotFoundError(f"Input path not found: {filename}")
         if not access(filename, R_OK):
             raise PermissionError(f"Input path not readable: {filename}")
- 
-    # load graph(s)
-    print(f"importing {len(args.input)} graph(s)...", end=" ")
-    kg = KnowledgeGraph(rng)
-    kg.parse(args.input)
-    print("done")
+
+    init_root_patterns, generate = init_seq, generate_seq
+    if args.parallel:
+        print(f"utilizing {cpu_count()} CPU cores")
+        init_root_patterns, generate = init_mp, generate_mp
 
     # validate paths
     f_out = None
@@ -225,13 +227,13 @@ if __name__ == "__main__":
             output_path = mkfile(args.output, OUTPUT_NAME, OUTPUT_EXT)
         else:
             output_path = Path(args.output)
- 
+
         if output_path.suffix != OUTPUT_EXT:
             raise UnsupportedSerializationFormat("Specified output path "
-                                                "has unexpected extension: "
+                                                 "has unexpected extension: "
                                                  f"{args.ouput.suffix}")
 
-        f_out = NTriples(path = output_path, mode = 'w')
+        f_out = NTriples(path = output_path, mode='w')
         if not isfile(f_out.path):
             raise FileNotFoundError(f"Output path not found: {args.output}")
         if not access(f_out.path, W_OK):
@@ -239,27 +241,37 @@ if __name__ == "__main__":
 
         print(f"writing output to {output_path}")
 
-        namespaces = {ns:pf for pf, ns in args.namespace}
-        prefix_map = mkprefixes(kg.namespaces,
-                                namespaces)
-
         graph_label = IRIRef("file://" + str(output_path))
         # write metadata to output
         write_metadata(f_out, graph_label, vars(args))
 
-    generate = generate_seq
-    if args.parallel:
-        generate = generate_mp
+    t0 = time()
+
+    root_patterns = list()
+    prefix_map = dict()
+    # load graph(s)
+    print(f"importing {len(args.input)} graph(s)...", end=" ")
+    with KnowledgeGraph(rng, args.input) as kg:
+        kg.parse()
+
+        root_patterns = init_root_patterns(rng, kg, args.min_support,
+                                           args.mode, args.multimodal)
+
+        namespaces = {ns: pf for pf, ns in args.namespace}
+        prefix_map = mkprefixes(kg.namespaces, namespaces)
 
     # compute clauses
-    generate(rng = rng, kg = kg, depths = args.depth,
-             min_support = args.min_support,
-             p_explore = args.p_explore,
-             p_extend = args.p_extend,
-             mode = args.mode,
-             max_length = args.max_size,
-             max_width = args.max_width,
-             multimodal = args.multimodal,
-             out_writer = f_out,
-             out_prefix_map = prefix_map,
-             out_ns = graph_label)
+    num_patterns = generate(root_patterns=root_patterns,
+                            depths=args.depth,
+                            min_support=args.min_support,
+                            p_explore=args.p_explore,
+                            p_extend=args.p_extend,
+                            mode=args.mode,
+                            max_length=args.max_size,
+                            max_width=args.max_width,
+                            out_writer=f_out,
+                            out_prefix_map=prefix_map,
+                            out_ns=graph_label)
+
+    duration = time()-t0
+    print('discovered {} patterns in {:0.3f}s'.format(num_patterns, duration))

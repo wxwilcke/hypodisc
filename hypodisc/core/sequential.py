@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
 from random import random
-from time import time
 from multiprocessing import Manager
 from typing import Counter, Literal, Optional, Union
 
@@ -31,19 +30,17 @@ from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
 IGNORE_PREDICATES = {RDF + 'type', RDFS + 'label'}
 
 
-def generate(rng: np.random.Generator, kg: KnowledgeGraph,
+def generate(root_patterns: dict[str, list],
              depths: range, min_support: int,
              p_explore: float, p_extend: float,
              max_length: int, max_width: int,
-             multimodal: bool, out_writer: Optional[NTriples],
+             out_writer: Optional[NTriples],
              out_prefix_map: Optional[dict[str, str]],
              out_ns: Optional[IRIRef],
-             mode: Literal["A", "T", "AT"]) -> None:
+             mode: Literal["A", "T", "AT"]) -> int:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
 
-    :param kg:
-    :type kg: KnowledgeGraph
     :param depths:
     :type depths: range
     :param min_support:
@@ -56,19 +53,12 @@ def generate(rng: np.random.Generator, kg: KnowledgeGraph,
     :type max_length: int
     :param max_width:
     :type max_width: int
-    :param multimodal:
-    :type multimodal: bool
     :param mode:
     :type mode: Literal["A", "AT", "T"]
     :rtype: None
     """
 
-    t0 = time()
-    root_patterns = init_root_patterns(rng, kg, min_support,
-                                       mode, multimodal)
-
     parents = dict()
-    npruned = 0
     num_patterns = 0
     for depth in range(0, depths.stop):
         print("exploring depth {} / {}".format(depth+1, depths.stop))
@@ -160,14 +150,7 @@ def generate(rng: np.random.Generator, kg: KnowledgeGraph,
         parents = {k: v for k, v in derivatives.items()
                    if len(v) > 0}
 
-    duration = time()-t0
-    print('discovered {} patterns in {:0.3f}s'.format(num_patterns, duration),
-          end="")
-
-    if npruned > 0:
-        print(" ({} pruned)".format(npruned))
-    else:
-        print()
+    return num_patterns
 
 
 def explore(parent: GraphPattern, candidates: set,

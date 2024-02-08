@@ -32,13 +32,10 @@ class GraphPattern():
 
         self.connections = dict()  # type: Dict[Assertion, set]
         self.distances = dict()  # type: Dict[int, set]
-        self.distances_reverse = dict()  # type: Dict[Assertion, int]
 
         if len(assertions) > 0:
             self.root = self._infer_root(assertions)
             self.distances = self._compute_distances({self.root}, assertions)
-            self.distances_reverse = {a:d for d,a_set in self.distances.items()\
-                    for a in a_set}
             self.connections = self._compute_connections(self.distances)
 
             if len(assertions) == 1:
@@ -154,6 +151,7 @@ class GraphPattern():
         :type extension: Assertion
         :rtype: None
         """
+        distance = 0
         if type(endpoint) is not ObjectTypeVariable:
             raise Exception('Cannot extend from this endpoint')
         if endpoint.value != extension.lhs.value:
@@ -181,10 +179,13 @@ class GraphPattern():
             extension._inv_idx_map = inv_idx_map
 
             self.connections[assertion].add(extension)
-            distance = self.distances_reverse[assertion] + 1
+            for d, assertions in self.distances.items():
+                if assertion in assertions:
+                    distance = d + 1
+
+                    break
 
         self.connections[extension] = set()
-        self.distances_reverse[extension] = distance
         if distance not in self.distances.keys():
             self.distances[distance] = set()
         self.distances[distance].add(extension)
@@ -206,7 +207,6 @@ class GraphPattern():
                          for k in self.connections.keys()}
         g.distances = {k: {v for v in self.distances[k]}
                        for k in self.distances.keys()}
-        g.distances_reverse = {k: v for k,v in self.distances_reverse.items()}
 
         return g
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 import gzip
 from typing import Optional, Set, Tuple, Union
+from typing_extensions import Self
 from uuid import uuid4
 
 import numpy as np
@@ -91,7 +92,8 @@ class KnowledgeGraph():
     """ Knowledge Graph stored in vector representation plus query functions
     """
 
-    def __init__(self, rng: np.random.Generator) -> None:
+    def __init__(self, rng: np.random.Generator,
+                 paths: list[str]) -> None:
         """ Knowledge Graph stored in vector representation plus query
             functions
 
@@ -100,9 +102,16 @@ class KnowledgeGraph():
         :rtype: None
         """
         self._rng = rng
+        self.paths = paths
         self.namespaces = set()
 
-    def parse(self, paths: list[str]) -> None:
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        return
+
+    def parse(self) -> None:
         """ Parse graph on file level.
 
         Supports plain or gzipped NTriple or NQuad files
@@ -122,7 +131,7 @@ class KnowledgeGraph():
 
         annotations[XSD_STRING] = 0
         d_idx += 1
-        for path in paths:
+        for path in self.paths:
             parts = path.split('.')
             is_gzipped = parts[-1] == "gz"
             suffix = parts[-1] if not is_gzipped else parts[-2]

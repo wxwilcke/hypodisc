@@ -1,19 +1,17 @@
 #! /usr/bin/env python
 
 import concurrent.futures as cf
-from multiprocessing import cpu_count, Manager, Lock
+from multiprocessing import Manager, Lock
 from multiprocessing.managers import ListProxy
 from random import random
-from time import time
 from typing import Counter, Literal, Optional
 
 import numpy as np
 from hypodisc.data.utils import write_query
 
 from rdf.formats import NTriples
-from rdf.namespaces import RDF, RDFS, XSD
+from rdf.namespaces import RDF, RDFS
 from rdf.terms import IRIRef
-from rdf.terms import Literal as rdfLiteral
 
 from hypodisc.data.graph import KnowledgeGraph
 from hypodisc.core.sequential import (explore, infer_type, new_graph_pattern,
@@ -44,19 +42,17 @@ def init_lock(plock:Lock) -> None:
     lock = plock
 
 
-def generate(rng: np.random.Generator, kg: KnowledgeGraph,
+def generate(root_patterns: dict[str, list],
              depths: range, min_support: int,
              p_explore: float, p_extend: float,
              max_length: int, max_width: int,
-             multimodal: bool, out_writer: Optional[NTriples],
+             out_writer: Optional[NTriples],
              out_prefix_map: Optional[dict[str, str]],
              out_ns: Optional[IRIRef],
-             mode: Literal["A", "T", "AT"]) -> None:
+             mode: Literal["A", "T", "AT"]) -> int:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
 
-    :param kg:
-    :type kg: KnowledgeGraph
     :param depths:
     :type depths: range
     :param min_support:
@@ -69,22 +65,14 @@ def generate(rng: np.random.Generator, kg: KnowledgeGraph,
     :type max_length: int
     :param max_width:
     :type max_width: int
-    :param multimodal:
-    :type multimodal: bool
     :param mode:
     :type mode: Literal["A", "AT", "T"]
     :rtype: None
     """
 
-    t0 = time()
+    num_patterns = 0
     with Manager() as manager:
-        print(f"utilizing {cpu_count()} CPU cores")
-        root_patterns = init_root_patterns(rng, kg, min_support,
-                                           mode, multimodal)
-
         parents = dict()
-        npruned = 0
-        num_patterns = 0
         for depth in range(0, depths.stop):
             print("exploring depth {} / {}".format(depth+1, depths.stop))
 
@@ -137,15 +125,7 @@ def generate(rng: np.random.Generator, kg: KnowledgeGraph,
             parents = {k: v for k, v in derivatives.items()
                        if len(v) > 0}
 
-        duration = time()-t0
-        print('discovered {} patterns in {:0.3f}s'.format(num_patterns,
-                                                          duration),
-              end="")
-
-        if npruned > 0:
-            print(" ({} pruned)".format(npruned))
-        else:
-            print()
+    return num_patterns
 
 
 def compute_candidates(root_patterns: dict, pattern: GraphPattern, depth: int,
