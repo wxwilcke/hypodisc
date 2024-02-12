@@ -266,7 +266,6 @@ if __name__ == "__main__":
                             min_support=args.min_support,
                             p_explore=args.p_explore,
                             p_extend=args.p_extend,
-                            mode=args.mode,
                             max_length=args.max_size,
                             max_width=args.max_width,
                             out_writer=f_out,

@@ -1,8 +1,9 @@
 #! /usr/bin/env python
 
+from collections import Counter
 from random import random
 from multiprocessing import Manager
-from typing import Counter, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 from hypodisc.data.utils import write_query
@@ -36,8 +37,7 @@ def generate(root_patterns: dict[str, list],
              max_length: int, max_width: int,
              out_writer: Optional[NTriples],
              out_prefix_map: Optional[dict[str, str]],
-             out_ns: Optional[IRIRef],
-             mode: Literal["A", "T", "AT"]) -> int:
+             out_ns: Optional[IRIRef]) -> int:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
 
@@ -53,9 +53,6 @@ def generate(root_patterns: dict[str, list],
     :type max_length: int
     :param max_width:
     :type max_width: int
-    :param mode:
-    :type mode: Literal["A", "AT", "T"]
-    :rtype: None
     """
 
     parents = dict()
@@ -82,6 +79,10 @@ def generate(root_patterns: dict[str, list],
                 # bound entities already have a fixed context.
                 if depth <= 0:
                     endpoints = {pattern.root}
+
+                    # add these as parents for next depth
+                    if isinstance(pattern.assertion.rhs, ObjectTypeVariable):
+                        derivatives[name].add(pattern)
                 else:
                     endpoints = {a.rhs for a in pattern.distances[depth-1]
                                  if isinstance(a.rhs, ObjectTypeVariable)}
@@ -116,17 +117,6 @@ def generate(root_patterns: dict[str, list],
                         if pattern_hash in visited:
                             continue
                         visited.add(pattern_hash)
-
-                        if "T" not in mode\
-                                and isinstance(extension.rhs,
-                                               TypeVariable):
-                            # limit extensions to Abox
-                            continue
-                        if "A" not in mode\
-                                and not isinstance(extension.rhs,
-                                                   TypeVariable):
-                            # limit extensions to Tbox
-                            continue
 
                         candidates.add((endpoint, extension))
 
@@ -196,7 +186,14 @@ def explore(parent: GraphPattern, candidates: set,
 
                 pattern_new = extend(pattern, endpoint, extension)
 
-                if pattern_new.support > min_support:
+                # add as new if satisfies support and has a more constraint
+                # domain than its parent or when the extension allows for
+                # possible future extensions.
+                if pattern_new.support >= min_support\
+                        and (isinstance(extension.rhs, ObjectTypeVariable)
+                             or pattern_new.parent is None
+                             or pattern_new.support <
+                             pattern_new.parent.support):
                     qexplore.put(pattern_new)  # explore further extensions
                     derivatives.add(pattern_new)
                 else:
@@ -288,12 +285,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
             if p_idx == rdf_type_idx:
                 continue
 
-            # list of global indices for class members with this property
-            s_idx_list = sorted(list(set(kg.A[p_idx].row) &
-                                     set(class_members_idx)))
-
-            p_freq = len(s_idx_list)
-            if p_freq < min_support:
+            # mask for class members that have this relation outgoing
+            p_mask = np.isin(kg.A[p_idx].row, class_members_idx)
+            if sum(p_mask) < min_support:
                 # if the number of entities of type t that have this predicate
                 # is less than the minimal support, then the overall pattern
                 # will have less as well
@@ -301,11 +295,47 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
 
             p = kg.i2r[p_idx]
 
-            # list of global indices for corresponding tail nodes
-            o_idx_list = kg.A[p_idx].col[np.isin(kg.A[p_idx].row, s_idx_list)]
+            # list of global indices for class members with this property
+            # plus the matching tail nodes
+            s_idx_list = kg.A[p_idx].row[p_mask]
+            o_idx_list = kg.A[p_idx].col[p_mask]
 
             # infer (data) type from single tail node (assume rest is same)
             o_type, is_literal = infer_type(kg, rdf_type_idx, o_idx_list[-1])
+
+            # assume that all objects linked by the same relation are of
+            # the same type. This may not always be true but it is usually
+            # the case in well-engineered graphs. See this as an
+            # optimization by approximation.
+            pattern = None
+            o_idx = o_idx_list[0]
+            inv_assertion_map = {o_idx: {s_idx_list[i]
+                                         for i, idx in
+                                         enumerate(o_idx_list)
+                                         if idx == o_idx}
+                                 for o_idx in o_idx_list}
+            if generate_Tbox and o_idx in kg.ni2ai.keys():
+                # object is literal
+                o_type = kg.i2a[kg.ni2ai[o_idx]]
+                var_o = DataTypeVariable(o_type)
+
+                pattern = new_var_graph_pattern(root_var, var_o,
+                                                set(s_idx_list), p,
+                                                inv_assertion_map)
+            else:
+                # object is entity (or bnode or literal without type)
+                idx = np.where(A_type.row == o_idx)
+                o_type_idx = A_type.col[idx]
+                if len(o_type_idx) > 0:
+                    o_type = kg.i2n[o_type_idx[0]]
+                    var_o = ObjectTypeVariable(o_type)
+
+                    pattern = new_var_graph_pattern(root_var, var_o,
+                                                    set(s_idx_list), p,
+                                                    inv_assertion_map)
+
+            if pattern is not None and pattern.support >= min_support:
+                root_patterns[class_name].append(pattern)
 
             # create graph_patterns for all predicate-object pairs
             # treat both entities and literals as node
@@ -340,42 +370,6 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
 
                     if pattern is not None and pattern.support >= min_support:
                         root_patterns[class_name].append(pattern)
-
-            # add graph_patterns with variables as objects
-            if generate_Tbox:
-                # assume that all objects linked by the same relation are of
-                # the same type. This may not always be true but it is usually
-                # the case in well-engineered graphs. See this as an
-                # optimization by approximation.
-                pattern = None
-                o_idx = o_idx_list[0]
-                inv_assertion_map = {o_idx: {s_idx_list[i]
-                                             for i, idx in
-                                             enumerate(o_idx_list)
-                                             if idx == o_idx}
-                                     for o_idx in o_idx_list}
-                if o_idx in kg.ni2ai.keys():
-                    # object is literal
-                    o_type = kg.i2a[kg.ni2ai[o_idx]]
-                    var_o = DataTypeVariable(o_type)
-
-                    pattern = new_var_graph_pattern(root_var, var_o,
-                                                    set(s_idx_list), p,
-                                                    inv_assertion_map)
-                else:
-                    # object is entity (or bnode or literal without type)
-                    idx = np.where(A_type.row == o_idx)
-                    o_type_idx = A_type.col[idx]
-                    if len(o_type_idx) > 0:
-                        o_type = kg.i2n[o_type_idx[0]]
-                        var_o = ObjectTypeVariable(o_type)
-
-                        pattern = new_var_graph_pattern(root_var, var_o,
-                                                        set(s_idx_list), p,
-                                                        inv_assertion_map)
-
-                if pattern is not None and pattern.support >= min_support:
-                    root_patterns[class_name].append(pattern)
 
             if multimodal:
                 # assume that all objects linked by the same relation are of
