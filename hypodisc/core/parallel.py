@@ -77,13 +77,16 @@ def generate(root_patterns: dict[str, list],
 
             derivatives = dict()
             visited = manager.list()
-            for name in parents.keys():
+            for name in sorted(list(parents.keys())):
                 print(f" type {name}", end=" ")
 
                 derivatives[name] = set()
-                if depth == 0:
+                patterns = parents[name]
+                if depth > 0:
+                    patterns = parents.pop(name)
+                else:
                     # add these as parents for next depth
-                    for pattern in parents[name]:
+                    for pattern in patterns:
                         if isinstance(pattern.assertion.rhs,
                                       ObjectTypeVariable):
                             derivatives[name].add(pattern)
@@ -95,7 +98,7 @@ def generate(root_patterns: dict[str, list],
                                                    root_patterns, pattern,
                                                    depth, p_explore, p_extend,
                                                    visited)
-                                   for pattern in parents[name]
+                                   for pattern in patterns
                                    if len(pattern) < max_length
                                    and pattern.width() < max_width]
 
@@ -185,14 +188,13 @@ def compute_candidates(root_patterns: dict, pattern: GraphPattern, depth: int,
                                         endpoint,
                                         extension)
 
-            lock.acquire()  # prevent race conditions
             skip = False
-            if pattern_hash in visited\
-                    or pattern.contains_at_depth(extension, depth):
-                skip = True
-            if not skip:
-                visited.append(pattern_hash)
-            lock.release()
+            with lock:
+                if pattern_hash in visited\
+                        or pattern.contains_at_depth(extension, depth):
+                    skip = True
+                if not skip:
+                    visited.append(pattern_hash)
 
             if skip:
                 continue

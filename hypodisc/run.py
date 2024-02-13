@@ -215,6 +215,7 @@ if __name__ == "__main__":
     init_root_patterns, generate = init_seq, generate_seq
     if args.parallel:
         print(f"utilizing {cpu_count()} CPU cores")
+        print("WARNING: this feature currently suffers from race conditions")
         init_root_patterns, generate = init_mp, generate_mp
 
     # validate paths

@@ -16,7 +16,7 @@ from rdf.terms import Literal as rdfLiteral
 from hypodisc.core.utils import predict_hash
 from hypodisc.data.graph import KnowledgeGraph
 from hypodisc.core.structures import (Assertion, GraphPattern,
-                                      ResourceWrapper, TypeVariable,
+                                      ResourceWrapper, 
                                       DataTypeVariable,
                                       Variable,
                                       MultiModalNumericVariable,
@@ -65,11 +65,15 @@ def generate(root_patterns: dict[str, list],
 
         visited = set()
         derivatives = dict()
-        for name in parents.keys():
+        for name in sorted(list(parents.keys())):
             print(f" type {name}", end=" ")
 
+            patterns = parents[name]
+            if depth > 0:
+                patterns = parents.pop(name)
+
             derivatives[name] = set()
-            for pattern in parents[name]:
+            for pattern in patterns:
                 if len(pattern) >= max_length or pattern.width() >= max_width:
                     continue
 
