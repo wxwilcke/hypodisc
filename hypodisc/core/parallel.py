@@ -47,9 +47,150 @@ def generate(root_patterns: dict[str, list],
              max_length: int, max_width: int,
              out_writer: Optional[NTriples],
              out_prefix_map: Optional[dict[str, str]],
-             out_ns: Optional[IRIRef]) -> int:
+             out_ns: Optional[IRIRef],
+             strategy: Literal["BFS", "DFS"]) -> int:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
+
+    :param depths:
+    :type depths: range
+    :param min_support:
+    :type min_support: int
+    :param p_explore:
+    :type p_explore: float
+    :param p_extend:
+    :type p_extend: float
+    :param max_length:
+    :type max_length: int
+    :param max_width:
+    :type max_width: int
+    """
+
+    if strategy == "BFS":
+        return generate_bf(root_patterns=root_patterns,
+                           depths=depths,
+                           min_support=min_support,
+                           p_explore=p_explore,
+                           p_extend=p_extend,
+                           max_length=max_length,
+                           max_width=max_width,
+                           out_writer=out_writer,
+                           out_prefix_map=out_prefix_map,
+                           out_ns=out_ns)
+    else:  # DFS
+        return generate_df(root_patterns=root_patterns,
+                           depths=depths,
+                           min_support=min_support,
+                           p_explore=p_explore,
+                           p_extend=p_extend,
+                           max_length=max_length,
+                           max_width=max_width,
+                           out_writer=out_writer,
+                           out_prefix_map=out_prefix_map,
+                           out_ns=out_ns)
+
+
+def generate_df(root_patterns: dict[str, list],
+                depths: range, min_support: int,
+                p_explore: float, p_extend: float,
+                max_length: int, max_width: int,
+                out_writer: Optional[NTriples],
+                out_prefix_map: Optional[dict[str, str]],
+                out_ns: Optional[IRIRef]) -> int:
+    """ Generate all patterns up to and including a maximum depth which
+        satisfy a minimal support, using a depth first approach.
+
+    :param depths:
+    :type depths: range
+    :param min_support:
+    :type min_support: int
+    :param p_explore:
+    :type p_explore: float
+    :param p_extend:
+    :type p_extend: float
+    :param max_length:
+    :type max_length: int
+    :param max_width:
+    :type max_width: int
+    :rtype: None
+    """
+
+    patterns = set()
+    num_patterns = 0
+    with Manager() as manager:
+        for name in sorted(list(root_patterns.keys())):
+            print(f"type {name}")
+
+            visited = manager.list()
+            for depth in range(0, depths.stop):
+                print(" exploring depth {} / {}".format(depth+1, depths.stop),
+                      end=" ")
+
+                if depth == 0:
+                    patterns = root_patterns[name]
+
+                derivatives = set()
+                if depth <= 0:
+                    # add these as parents for next depth
+                    for pattern in patterns:
+                        if isinstance(pattern.assertion.rhs,
+                                      ObjectTypeVariable):
+                            derivatives.add(pattern)
+
+                lock = Lock()
+                with cf.ProcessPoolExecutor(initializer=init_lock,
+                                            initargs=(lock,)) as executor:
+                    fcandidates = [executor.submit(compute_candidates,
+                                                   root_patterns, pattern,
+                                                   depth, p_explore, p_extend,
+                                                   visited)
+                                   for pattern in patterns
+                                   if len(pattern) < max_length
+                                   and pattern.width() < max_width]
+
+                    fextensions = list()
+                    for fcandidate in cf.as_completed(fcandidates):
+                        pattern, candidates = fcandidate.result()
+
+                        # start as soon as candidates drop in
+                        fextensions.append(executor.submit(explore,
+                                                           pattern, candidates,
+                                                           max_length,
+                                                           max_width,
+                                                           min_support))
+
+                    for fextension in cf.as_completed(fextensions):
+                        extensions = fextension.result()
+                        derivatives |= extensions
+
+                        if out_writer is not None\
+                                and out_prefix_map is not None:
+                            for pattern in extensions:
+                                num_patterns = write_query(out_writer, pattern,
+                                                           num_patterns,
+                                                           out_ns,
+                                                           out_prefix_map)
+
+                print("(+{} discovered)".format(len(derivatives)))
+
+                # omit exhausted classes from next iteration
+                if len(derivatives) > 0:
+                    patterns = {v for v in derivatives}
+                else:
+                    break
+
+    return num_patterns
+
+
+def generate_bf(root_patterns: dict[str, list],
+                depths: range, min_support: int,
+                p_explore: float, p_extend: float,
+                max_length: int, max_width: int,
+                out_writer: Optional[NTriples],
+                out_prefix_map: Optional[dict[str, str]],
+                out_ns: Optional[IRIRef]) -> int:
+    """ Generate all patterns up to and including a maximum depth which
+        satisfy a minimal support, using a breadth first approach.
 
     :param depths:
     :type depths: range

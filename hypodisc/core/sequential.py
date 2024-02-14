@@ -16,7 +16,7 @@ from rdf.terms import Literal as rdfLiteral
 from hypodisc.core.utils import predict_hash
 from hypodisc.data.graph import KnowledgeGraph
 from hypodisc.core.structures import (Assertion, GraphPattern,
-                                      ResourceWrapper, 
+                                      ResourceWrapper,
                                       DataTypeVariable,
                                       Variable,
                                       MultiModalNumericVariable,
@@ -37,9 +37,174 @@ def generate(root_patterns: dict[str, list],
              max_length: int, max_width: int,
              out_writer: Optional[NTriples],
              out_prefix_map: Optional[dict[str, str]],
-             out_ns: Optional[IRIRef]) -> int:
+             out_ns: Optional[IRIRef],
+             strategy: Literal["BFS", "DFS"]) -> int:
     """ Generate all patterns up to and including a maximum depth which
         satisfy a minimal support.
+
+    :param depths:
+    :type depths: range
+    :param min_support:
+    :type min_support: int
+    :param p_explore:
+    :type p_explore: float
+    :param p_extend:
+    :type p_extend: float
+    :param max_length:
+    :type max_length: int
+    :param max_width:
+    :type max_width: int
+    """
+
+    if strategy == "BFS":
+        return generate_bf(root_patterns=root_patterns,
+                           depths=depths,
+                           min_support=min_support,
+                           p_explore=p_explore,
+                           p_extend=p_extend,
+                           max_length=max_length,
+                           max_width=max_width,
+                           out_writer=out_writer,
+                           out_prefix_map=out_prefix_map,
+                           out_ns=out_ns)
+    else:  # DFS
+        return generate_df(root_patterns=root_patterns,
+                           depths=depths,
+                           min_support=min_support,
+                           p_explore=p_explore,
+                           p_extend=p_extend,
+                           max_length=max_length,
+                           max_width=max_width,
+                           out_writer=out_writer,
+                           out_prefix_map=out_prefix_map,
+                           out_ns=out_ns)
+
+
+def generate_df(root_patterns: dict[str, list],
+                depths: range, min_support: int,
+                p_explore: float, p_extend: float,
+                max_length: int, max_width: int,
+                out_writer: Optional[NTriples],
+                out_prefix_map: Optional[dict[str, str]],
+                out_ns: Optional[IRIRef]) -> int:
+    """ Generate all patterns up to and including a maximum depth which
+        satisfy a minimal support, using a depth first approach. This
+        approach uses less memory but does not have the anytime property.
+
+    :param depths:
+    :type depths: range
+    :param min_support:
+    :type min_support: int
+    :param p_explore:
+    :type p_explore: float
+    :param p_extend:
+    :type p_extend: float
+    :param max_length:
+    :type max_length: int
+    :param max_width:
+    :type max_width: int
+    """
+
+    patterns = set()
+    num_patterns = 0
+    for name in sorted(list(root_patterns.keys())):
+        print(f"type {name}")
+
+        visited = set()
+        for depth in range(0, depths.stop):
+            print(" exploring depth {} / {}".format(depth+1, depths.stop),
+                  end=" ")
+
+            if depth == 0:
+                patterns = root_patterns[name]
+
+            derivatives = set()
+            for pattern in patterns:
+                if len(pattern) >= max_length or pattern.width() >= max_width:
+                    continue
+
+                # Gather candidate endpoints at this depth.
+                # Only consider unbound object type variables since we
+                # cannot connect to literals or data type variables, and
+                # bound entities already have a fixed context.
+                if depth <= 0:
+                    endpoints = {pattern.root}
+
+                    # add these as parents for next depth
+                    if isinstance(pattern.assertion.rhs, ObjectTypeVariable):
+                        derivatives.add(pattern)
+                else:
+                    endpoints = {a.rhs for a in pattern.distances[depth-1]
+                                 if isinstance(a.rhs, ObjectTypeVariable)}
+
+                candidates = set()
+                for endpoint in endpoints:
+                    if endpoint.value not in root_patterns.keys():
+                        # no extension available
+                        continue
+
+                    if p_explore < random():
+                        # skip this endpoint with probability p_explore
+                        continue
+
+                    # Gather all candidate extensions that can connect
+                    # to an object type variable of the relevant type.
+                    for base_pattern in root_patterns[endpoint.value]:
+                        if p_extend < random():
+                            # skip this extension with probability p_extend
+                            continue
+
+                        # get base assertion
+                        extension = base_pattern.assertion
+
+                        # prune
+                        if pattern.contains_at_depth(extension, depth):
+                            continue
+
+                        pattern_hash = predict_hash(pattern,
+                                                    endpoint,
+                                                    extension)
+                        if pattern_hash in visited:
+                            continue
+                        visited.add(pattern_hash)
+
+                        candidates.add((endpoint, extension))
+
+                    extensions = explore(pattern,
+                                         candidates=candidates,
+                                         max_length=max_length,
+                                         max_width=max_width,
+                                         min_support=min_support)
+
+                    if out_writer is not None and out_prefix_map is not None:
+                        for pattern in extensions:
+                            num_patterns = write_query(out_writer, pattern,
+                                                       num_patterns, out_ns,
+                                                       out_prefix_map)
+
+                    derivatives |= extensions
+
+            print("(+{} discovered)".format(len(derivatives)))
+
+            # omit exhausted classes from next iteration
+            if len(derivatives) > 0:
+                patterns = {v for v in derivatives}
+            else:
+                break
+
+    return num_patterns
+
+
+def generate_bf(root_patterns: dict[str, list],
+                depths: range, min_support: int,
+                p_explore: float, p_extend: float,
+                max_length: int, max_width: int,
+                out_writer: Optional[NTriples],
+                out_prefix_map: Optional[dict[str, str]],
+                out_ns: Optional[IRIRef]) -> int:
+    """ Generate all patterns up to and including a maximum depth which
+        satisfy a minimal support, using a breadth first approach. This
+        approach has the anytime property yet uses more memory.
 
     :param depths:
     :type depths: range

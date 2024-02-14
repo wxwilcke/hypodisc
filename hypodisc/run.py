@@ -141,6 +141,7 @@ def setup_logger(verbose:bool) -> None:
     level = logging.DEBUG if verbose else logging.ERROR
     logging.basicConfig(format='%(levelname)s:%(message)s', level=level)
 
+
 if __name__ == "__main__":
     timestamp = int(time())
 
@@ -153,7 +154,7 @@ if __name__ == "__main__":
                         type=int, required=True)
     parser.add_argument("-o", "--output", help="Path to write output to.",
                         type=str, default=getcwd())
-    parser.add_argument("input", help="One or more knowledge graphs in " 
+    parser.add_argument("input", help="One or more knowledge graphs in "
                         + "(gzipped) NTriple or NQuad serialization format.",
                         nargs='+')
     parser.add_argument("--max_size", help="Maximum context size",
@@ -162,7 +163,7 @@ if __name__ == "__main__":
                         type=int, required=False, default=maxsize)
     parser.add_argument("--mode", help="A[box], T[box], or both as"
                         + " candidates to be included in the pattern",
-                        choices = ["A", "T", "AT", "TA"],
+                        choices=["A", "T", "AT", "TA"],
                         type=str, default="AT")
     parser.add_argument("--multimodal", help="Enable multimodal support",
                         required=False, action='store_true')
@@ -186,6 +187,10 @@ if __name__ == "__main__":
     parser.add_argument("--seed", help="Set the seed for the random number "
                         + "generator.", type=int, required=False,
                         default=None)
+    parser.add_argument("--strategy", help="Perform breadth-first (BFS) or "
+                        + "depth-first search (DFS). BFS has the anytime "
+                        + "property; DFS uses less memory.",
+                        choices=["BFS", "DFS"], default="BFS")
     parser.add_argument("--verbose", "-v", help="Print debug messages and "
                         " warnings", action="store_true")
     parser.add_argument("--version", action="version",
@@ -261,6 +266,9 @@ if __name__ == "__main__":
         namespaces = {ns: pf for pf, ns in args.namespace}
         prefix_map = mkprefixes(kg.namespaces, namespaces)
 
+    strategy = "Breadth" if args.strategy == "BFS" else "Depth"
+    print(f"starting {strategy}-First Search")
+
     # compute clauses
     num_patterns = generate(root_patterns=root_patterns,
                             depths=args.depth,
@@ -271,7 +279,8 @@ if __name__ == "__main__":
                             max_width=args.max_width,
                             out_writer=f_out,
                             out_prefix_map=prefix_map,
-                            out_ns=graph_label)
+                            out_ns=graph_label,
+                            strategy=args.strategy)
 
     duration = time()-t0
     print('discovered {} patterns in {:0.3f}s'.format(num_patterns, duration))
