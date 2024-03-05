@@ -25,9 +25,9 @@ from hypodisc.core.structures import (Assertion, GraphPattern,
 from hypodisc.multimodal.clustering import (compute_clusters,
                                             SUPPORTED_XSD_TYPES)
 from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
-                                           XSD_NUMERIC)
+                                           XSD_NUMERIC, XSD_STRING)
 
-
+XSD_TEMPORAL = set.union(XSD_DATETIME, XSD_DATEFRAG)
 IGNORE_PREDICATES = {RDF + 'type', RDFS + 'label'}
 
 
@@ -400,7 +400,8 @@ def extend(pattern: GraphPattern, endpoint: Variable, extension: Assertion)\
 
 def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                        min_support: float, mode: Literal["A", "AT", "T"],
-                       multimodal: bool) -> dict[str, list]:
+                       textual_support: bool, numerical_support: bool,
+                       temporal_support: bool) -> dict[str, list]:
     """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
@@ -426,6 +427,8 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
         generate_Abox = True
     if "T" in mode:
         generate_Tbox = True
+
+    multimodal = textual_support | numerical_support | temporal_support
 
     rdf_type = RDF + "type"
     rdf_type_idx = kg.r2i[rdf_type]
@@ -550,6 +553,13 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                     # object is literal
                     o_type = kg.i2a[kg.ni2ai[o_idx]]
                     if o_type not in SUPPORTED_XSD_TYPES:
+                        continue
+
+                    if not textual_support and o_type in XSD_STRING:
+                        continue
+                    if not numerical_support and o_type in XSD_NUMERIC:
+                        continue
+                    if not temporal_support and o_type in XSD_TEMPORAL:
                         continue
 
                     o_values = [kg.i2n[i].value for i in o_idx_list]

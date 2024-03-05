@@ -165,8 +165,15 @@ if __name__ == "__main__":
                         + " candidates to be included in the pattern",
                         choices=["A", "T", "AT", "TA"],
                         type=str, default="AT")
-    parser.add_argument("--multimodal", help="Enable multimodal support",
-                        required=False, action='store_true')
+    parser.add_argument("--textual_support", help="Cluster on textual "
+                        + "literals", required=False,
+                        action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--numerical_support", help="Cluster on numerical "
+                        + "literals", required=False,
+                        action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--temporal_support", help="Cluster on temporal "
+                        + "literals", required=False,
+                        action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--namespace", help="Add a custom prefix:namespace "
                         + "pair to be used in the output. This parameter can "
                         + "be used more than once to provide multiple "
@@ -261,7 +268,9 @@ if __name__ == "__main__":
         kg.parse()
 
         root_patterns = init_root_patterns(rng, kg, args.min_support,
-                                           args.mode, args.multimodal)
+                                           args.mode, args.textual_support,
+                                           args.numerical_support,
+                                           args.temporal_support)
 
         namespaces = {ns: pf for pf, ns in args.namespace}
         prefix_map = mkprefixes(kg.namespaces, namespaces)

@@ -26,9 +26,10 @@ from hypodisc.core.utils import predict_hash
 from hypodisc.multimodal.clustering import (compute_clusters,
                                             SUPPORTED_XSD_TYPES)
 from hypodisc.multimodal.datatypes import (XSD_DATEFRAG, XSD_DATETIME,
-                                           XSD_NUMERIC)
+                                           XSD_NUMERIC, XSD_STRING)
 
 
+XSD_TEMPORAL = set.union(XSD_DATETIME, XSD_DATEFRAG)
 IGNORE_PREDICATES = {RDF + 'type', RDFS + 'label'}
 
 def init_lock(plock:Lock) -> None:
@@ -347,7 +348,8 @@ def compute_candidates(root_patterns: dict, pattern: GraphPattern, depth: int,
 
 def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                        min_support: float, mode: Literal["A", "AT", "T"],
-                       multimodal: bool) -> dict[str, list]:
+                       textual_support: bool, numerical_support: bool,
+                       temporal_support: bool) -> dict[str, list]:
     """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
@@ -391,8 +393,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
         root_var = ObjectTypeVariable(class_name)
         with cf.ProcessPoolExecutor() as executor:
             futures = [executor.submit(compute_root_patterns, rng, kg,
-                                       min_support, mode, multimodal, p_idx,
-                                       rdf_type_idx, root_var,
+                                       min_support, mode, textual_support,
+                                       numerical_support, temporal_support,
+                                       p_idx, rdf_type_idx, root_var,
                                        class_members_idx)
                        for p_idx in range(kg.num_relations)
                        if p_idx != rdf_type_idx
@@ -413,8 +416,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
 
 def compute_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                           min_support: float, mode: Literal["A", "AT", "T"],
-                          multimodal: bool, p_idx: int, rdf_type_idx: int,
-                          root_var: ObjectTypeVariable,
+                          textual_support: bool, numerical_support: bool,
+                          temporal_support: bool, p_idx: int,
+                          rdf_type_idx: int, root_var: ObjectTypeVariable,
                           class_members_idx: np.ndarray) -> set[GraphPattern]:
     """ Compute all root patterns with this predicate.
 
@@ -445,6 +449,8 @@ def compute_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
         generate_Abox = True
     if "T" in mode:
         generate_Tbox = True
+
+    multimodal = textual_support | numerical_support | temporal_support
 
     p = kg.i2r[p_idx]
 
@@ -535,32 +541,41 @@ def compute_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
         if o_idx in kg.ni2ai.keys():
             # object is literal
             o_type = kg.i2a[kg.ni2ai[o_idx]]
-            if o_type in SUPPORTED_XSD_TYPES:
-                o_values = [kg.i2n[i].value for i in o_idx_list]
-                if len(o_values) >= min_support:
-                    # if the full set does not exceed the threshold then nor
-                    # will subsets thereof
-                    os_idx_map = dict(zip(o_idx_list, s_idx_list))
-                    clusters = compute_clusters(rng, o_type,
-                                                o_values,
-                                                o_idx_list)
-                    for members, cluster in clusters:
-                        if o_type in set.union(XSD_NUMERIC,
-                                               XSD_DATETIME,
-                                               XSD_DATEFRAG):
-                            var_o = MultiModalNumericVariable(o_type, cluster)
-                        else:  # treat as strings
-                            var_o = MultiModalStringVariable(o_type, cluster)
+            if o_type not in SUPPORTED_XSD_TYPES:
+                return root_patterns
 
-                        domain = {os_idx_map[i] for i in members}
-                        inv_assertion_map = {o_idx:
-                                             domain for o_idx in members}
-                        pattern = new_mm_graph_pattern(root_var, var_o,
-                                                       domain, p,
-                                                       inv_assertion_map)
+            if not textual_support and o_type in XSD_STRING:
+                return root_patterns
+            if not numerical_support and o_type in XSD_NUMERIC:
+                return root_patterns
+            if not temporal_support and o_type in XSD_TEMPORAL:
+                return root_patterns
 
-                        if pattern is not None\
-                                and pattern.support >= min_support:
-                            root_patterns.add(pattern)
+            o_values = [kg.i2n[i].value for i in o_idx_list]
+            if len(o_values) >= min_support:
+                # if the full set does not exceed the threshold then nor
+                # will subsets thereof
+                os_idx_map = dict(zip(o_idx_list, s_idx_list))
+                clusters = compute_clusters(rng, o_type,
+                                            o_values,
+                                            o_idx_list)
+                for members, cluster in clusters:
+                    if o_type in set.union(XSD_NUMERIC,
+                                           XSD_DATETIME,
+                                           XSD_DATEFRAG):
+                        var_o = MultiModalNumericVariable(o_type, cluster)
+                    else:  # treat as strings
+                        var_o = MultiModalStringVariable(o_type, cluster)
+
+                    domain = {os_idx_map[i] for i in members}
+                    inv_assertion_map = {o_idx:
+                                         domain for o_idx in members}
+                    pattern = new_mm_graph_pattern(root_var, var_o,
+                                                   domain, p,
+                                                   inv_assertion_map)
+
+                    if pattern is not None\
+                            and pattern.support >= min_support:
+                        root_patterns.add(pattern)
 
     return root_patterns
