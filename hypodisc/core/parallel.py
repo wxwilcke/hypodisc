@@ -349,7 +349,8 @@ def compute_candidates(root_patterns: dict, pattern: GraphPattern, depth: int,
 def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                        min_support: float, mode: Literal["A", "AT", "T"],
                        textual_support: bool, numerical_support: bool,
-                       temporal_support: bool) -> dict[str, list]:
+                       temporal_support: bool, exclude: list[str])\
+            -> dict[str, list]:
     """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
@@ -372,6 +373,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
     rdf_type_idx = kg.r2i[rdf_type]
 
     A_type = kg.A[rdf_type_idx]
+
+    # list of predicate indices to ingore
+    exclude_idx = [kg.r2i[IRIRef(p)] for p in exclude]
 
     class_idx_list = sorted(list(set(A_type.col)))
     class_freq = A_type.sum(axis=0)[class_idx_list]
@@ -399,6 +403,7 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                                        class_members_idx)
                        for p_idx in range(kg.num_relations)
                        if p_idx != rdf_type_idx
+                       and p_idx not in exclude_idx
                        and len(set(kg.A[p_idx].row) &
                                set(class_members_idx)) >= min_support]
 

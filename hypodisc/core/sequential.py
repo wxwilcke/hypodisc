@@ -401,7 +401,8 @@ def extend(pattern: GraphPattern, endpoint: Variable, extension: Assertion)\
 def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
                        min_support: float, mode: Literal["A", "AT", "T"],
                        textual_support: bool, numerical_support: bool,
-                       temporal_support: bool) -> dict[str, list]:
+                       temporal_support: bool, exclude: list[str])\
+            -> dict[str, list]:
     """ Creating all patterns of types which satisfy minimal support.
 
     :param rng:
@@ -435,6 +436,9 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
 
     A_type = kg.A[rdf_type_idx]
 
+    # list of predicate indices to ingore
+    exclude_idx = [kg.r2i[IRIRef(p)] for p in exclude]
+
     class_idx_list = sorted(list(set(A_type.col)))
     class_freq = A_type.sum(axis=0)[class_idx_list]
     for class_i, class_idx in enumerate(class_idx_list):
@@ -454,7 +458,7 @@ def init_root_patterns(rng: np.random.Generator, kg: KnowledgeGraph,
 
         root_var = ObjectTypeVariable(class_name)
         for p_idx in range(kg.num_relations):
-            if p_idx == rdf_type_idx:
+            if p_idx == rdf_type_idx or p_idx in exclude_idx:
                 continue
 
             # mask for class members that have this relation outgoing

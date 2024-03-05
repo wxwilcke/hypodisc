@@ -157,6 +157,10 @@ if __name__ == "__main__":
     parser.add_argument("input", help="One or more knowledge graphs in "
                         + "(gzipped) NTriple or NQuad serialization format.",
                         nargs='+')
+    parser.add_argument("--exclude", help="Exclude one or more predicates "
+                        + "from being considered as building block for "
+                        + "pattern.",
+                        type=str, action='append', default=[])
     parser.add_argument("--max_size", help="Maximum context size",
                         type=int, required=False, default=maxsize)
     parser.add_argument("--max_width", help="Maximum width of shell",
@@ -270,7 +274,8 @@ if __name__ == "__main__":
         root_patterns = init_root_patterns(rng, kg, args.min_support,
                                            args.mode, args.textual_support,
                                            args.numerical_support,
-                                           args.temporal_support)
+                                           args.temporal_support,
+                                           args.exclude)
 
         namespaces = {ns: pf for pf, ns in args.namespace}
         prefix_map = mkprefixes(kg.namespaces, namespaces)
