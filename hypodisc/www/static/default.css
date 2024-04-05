@@ -22,6 +22,14 @@ body {
   transition: max-height 0.2s ease-out;
 } 
 
+#filter {
+  padding: 0 18px;
+  background-color: #f2f7ff ;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+} 
+
 .collapsible {
   background-color: #b7dff2;
   cursor: pointer;

@@ -11,8 +11,8 @@
             hljs.highlightAll();
         </script>
         <script type="text/javascript">
-            function toggleCollapse() {
-                const elem = document.getElementById("metadata");
+            function toggleCollapse(elem) {
+                //const elem = document.getElementById("metadata");
 
                 if (elem.style.maxHeight){
                   elem.style.maxHeight = null;
@@ -35,10 +35,10 @@
     </head>
     <body>
         <h1>HypoDisc Pattern Browser</h1>
-        <b>{{ filename }}</b>
+        <b>Filename: {{ filename }}</b>
 
         <h2>Meta Data</h2>
-        <button type="button" onclick="toggleCollapse()" class="collapsible">show more</button>
+        <button type="button" onclick="toggleCollapse(this.nextElementSibling)" class="collapsible">show more</button>
         <div id="metadata">
             <table>
             {%for k,v in metadata.items()%}
@@ -51,7 +51,39 @@
         </div>
 
         <h2>Patterns</h2>
-        {%for query in queries%}
+        <button type="button" onclick="toggleCollapse(this.nextElementSibling)" class="collapsible">Filters</button>
+        <div id="filter">
+            <form action="{{ url_for('viewer') }}" method="POST">
+                <fieldset style="float:left;">
+                    <legend>Support</legend>
+                    <input type="number" id="filter_support_range_from" name="filter_support_range_from" size="6" min="1" max="5" value="1"> to
+                    <input type="number" id="filter_support_range_to" name="filter_support_range_to" size="6" min="1" max="5" value="5">
+                </fieldset>
+                <fieldset style="float:left;">
+                    <legend>Length</legend>
+                    <input type="number" id="filter_length_range_from" name="filter_length_range_from" size="6" min="1" max="5" value="1"> to
+                    <input type="number" id="filter_length_range_to" name="filter_length_range_to" size="6" min="1" max="5" value="5">
+                </fieldset>
+                <fieldset style="float:left;">
+                    <legend>Depth</legend>
+                    <input type="number" id="filter_depth_range_from" name="filter_depth_range_from" size="6" min="1" max="5" value="1"> to
+                    <input type="number" id="filter_depth_range_to" name="filter_depth_range_to" size="6" min="1" max="5" value="5">
+                </fieldset>
+                <fieldset style="float:left;">
+                    <legend>Width</legend>
+                    <input type="number" id="filter_width_range_from" name="filter_width_range_from" size="6" min="1" max="5" value="1"> to
+                    <input type="number" id="filter_width_range_to" name="filter_width_range_to" size="6" min="1" max="5" value="5">
+                </fieldset>
+                <fieldset style="float:left;">
+                    <legend>Text Search</legend>
+                    <input type="search" id="text_search" name="text_search" size="40" placeholder="keyword(s)">
+                </fieldset>
+                <input type="submit" value="Apply" style="float:right">
+            </form>
+        </div>
+        <br/>
+
+        {%for query in cursor.fetchmany(pagesize):%}
         <div id="query_{{ query['id'] }}" class="pattern">
             <table>
             <tr>
@@ -60,30 +92,30 @@
             </tr>
             <tr>
                 <td>support</td>
-                <td>{{ query['support'] }}</td>
+                <td>{{ query['hasSupport'] }}</td>
             </tr>
             <tr>
                 <td>depth</td>
-                <td>{{ query['depth'] }}</td>
+                <td>{{ query['hasDepth'] }}</td>
             </tr>
             <tr>
                 <td>width</td>
-                <td>{{ query['width'] }}</td>
+                <td>{{ query['hasWidth'] }}</td>
             </tr>
             <tr>
                 <td>length</td>
-                <td>{{ query['length'] }}</td>
+                <td>{{ query['hasLength'] }}</td>
             </tr>
             <tr>
                 <td>pattern</td>
                 <td class="query">
                     <pre>
-                        <code class="sparql">{{ query['pattern'] }}</code>
+                        <code class="sparql">{{ query['hasPattern'] }}</code>
                     </pre>
                 </td>
             </tr>
             </table>
-            <p class="graph">{{ query['dotrepresentation'] }}</p>
+            <p class="graph">{{ query['hasDOTRrepresentation'] }}</p>
             <button type="button" onclick="drawGraph({{ "query_" ~ query['id'] }}.querySelectorAll(':scope > .graph')[0])">draw graph</button>
         </div>
         <br/>
