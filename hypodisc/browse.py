@@ -8,6 +8,7 @@ from os.path import isfile
 import sqlite3
 from tempfile import NamedTemporaryFile
 from threading import Timer
+from typing import cast
 import webbrowser
 
 from flask import current_app, Flask, render_template, url_for, request
@@ -37,13 +38,11 @@ DB_PRIMARY_TABLE = """CREATE TABLE IF NOT EXISTS {}(
                                                *DB_PRIMARY_TABLE_COLUMNS)
 DB_SEARCH_TABLE_NAME = "pattern_fts"
 DB_SEARCH_TABLE_COLUMNS = ["id", "hasPattern"]
-DB_SEARCH_TABLE = """CREATE VIRTUAL TABLE IF NOT EXISTS {} USING FTS5(
-                                   {} INTEGER PRIMARY KEY,
-                                   {} TEXT NOT NULL
-                                   )""".format(DB_SEARCH_TABLE_NAME,
-                                               *DB_SEARCH_TABLE_COLUMNS)
+DB_SEARCH_TABLE = """CREATE VIRTUAL TABLE {} USING FTS5({}, {})""".format(
+        DB_SEARCH_TABLE_NAME,
+        *DB_SEARCH_TABLE_COLUMNS)
 
-DB_QUERY_ALL = f"SELECT * FROM {DB_PRIMARY_TABLE_NAME}"
+DB_QUERY_ALL = f"SELECT * FROM {DB_PRIMARY_TABLE_NAME} ORDER BY id ASC"
 NUM_TRIPLES_PER_QUERY = len(DB_PRIMARY_TABLE_COLUMNS)
 
 app = Flask(__name__, root_path=f'{getcwd()}/hypodisc/www/')
@@ -53,9 +52,13 @@ app.config['SERVER_NAME'] = '127.0.0.1:5000'
 @app.route('/', methods=['GET', 'POST'])
 def viewer():
     query = DB_QUERY_ALL
+    filter_values = {k: v for k, v
+                     in current_app.defaults.items()}  # type: ignore
     if request.method == 'POST':
-        filter_config = request.form
-        query = generate_query(filter_config)
+        filter_values_provided = request.form
+        query = generate_query(filter_values_provided, DB_PRIMARY_TABLE_NAME)
+
+        filter_values.update(filter_values_provided)
 
     # retrieve data
     qcur = current_app.cur.execute(query)  # type: ignore
@@ -64,13 +67,45 @@ def viewer():
                            filename=current_app.filename,  # type: ignore
                            metadata=current_app.metadata,  # type: ignore
                            cursor=qcur,
-                           pagesize=current_app.pagesize)  # type: ignore
+                           pagesize=current_app.pagesize,  # type: ignore
+                           defaults=current_app.defaults,  # type: ignore
+                           filters=filter_values)  # type: ignore
 
 
-def generate_query(config: ImmutableMultiDict) -> str:
-    search_query = config.get('text_search')
+def generate_query(values: ImmutableMultiDict, table_name: str) -> str:
+    """ Generate query based on provided values.
+
+    :param values:
+    :type values: ImmutableMultiDict
+    :rtype: str
+    """
+    constraints = list()
+
+    # full text search on FTS table
+    search_query = values.get('text_search')
     if isinstance(search_query, str) and len(search_query) > 0:
-        pass
+        subquery = "SELECT id FROM {} WHERE hasPattern MATCH {}".format(
+                    DB_SEARCH_TABLE_NAME, repr(search_query))
+
+        constraints.append(f"id IN ({subquery})")
+
+    # numerical filter settings
+    for param in ["support", "length", "depth", "width"]:
+        k_min, k_max = param + "_min", param + "_max"
+        col_name = "has" + param.title()
+
+        constraint = "{} BETWEEN {} AND {}".format(col_name,
+                                                   values.get(k_min),
+                                                   values.get(k_max))
+        constraints.append(constraint)
+
+    # order of results
+    order = values.get("order_by")
+
+    return """SELECT * FROM {} WHERE {} ORDER BY {};""".format(
+            table_name,
+            """ AND """.join(constraints),
+            order)
 
 
 def open_browser(port: int) -> None:
@@ -241,8 +276,43 @@ def copy_db_columns(conn: sqlite3.Connection, table_destination: str,
 
     conn.commit()
 
+def update_defaults(defaults: dict[str, int], pattern: dict[str, str | int])\
+        -> None:
+    """ Update default min/max values.
 
-def populate_db(conn: sqlite3.Connection, g: NTriples)\
+    :param defaults:
+    :type defaults: dict[str, int]
+    :param pattern:
+    :type pattern: dict[str, str | int]
+    :rtype: None
+    """
+    support = cast(int, pattern["hasSupport"])
+    if support < defaults["support_min"] or defaults["support_min"] < 0:
+        defaults["support_min"] = support
+    if support > defaults["support_max"]:
+        defaults["support_max"] = support
+
+    length = cast(int, pattern["hasLength"])
+    if length < defaults["length_min"] or defaults["length_min"] < 0:
+        defaults["length_min"] = length
+    if length > defaults["length_max"]:
+        defaults["length_max"] = length
+
+    depth = cast(int, pattern["hasDepth"])
+    if depth < defaults["depth_min"] or defaults["depth_min"] < 0:
+        defaults["depth_min"] = depth
+    if depth > defaults["depth_max"]:
+        defaults["depth_max"] = depth
+
+    width = cast(int, pattern["hasWidth"])
+    if width < defaults["width_min"] or defaults["width_min"] < 0:
+        defaults["width_min"] = width
+    if width > defaults["width_max"]:
+        defaults["width_max"] = width
+
+
+def populate_db(conn: sqlite3.Connection, g: NTriples,
+                defaults: dict[str, int])\
         -> list[tuple[IRIRef, IRIRef, IRIRef | Literal]]:
     """ Iterate over the graph and add all patterns to the database. Keep track
     of a pattern's attributes to support unsorted entries. Returns the metadata
@@ -273,6 +343,7 @@ def populate_db(conn: sqlite3.Connection, g: NTriples)\
 
         if len(patterns[ident]) >= NUM_TRIPLES_PER_QUERY:
             pattern = process_pattern(patterns[ident])
+            update_defaults(defaults, pattern)
             insert_data(conn, pattern)
 
             del patterns[ident]  # no longer needed so free memory
@@ -292,7 +363,8 @@ def setup_logger(verbose: bool) -> None:
 
 
 def create_app(filename: str, conn: sqlite3.Connection,
-               metadata: dict[str, list[str]], pagesize: int) -> Flask:
+               metadata: dict[str, list[str]], defaults: dict[str, int],
+               pagesize: int) -> Flask:
     """ Set up app variables.
 
     :param filename:
@@ -308,6 +380,7 @@ def create_app(filename: str, conn: sqlite3.Connection,
         current_app.cur = conn.cursor()  # type: ignore
         current_app.metadata = metadata  # type: ignore
         current_app.pagesize = pagesize  # type: ignore
+        current_app.defaults = defaults  # type: ignore
 
     return app
 
@@ -344,10 +417,17 @@ if __name__ == "__main__":
         write_table(conn, DB_PRIMARY_TABLE)  # set up primary table
         write_table(conn, DB_SEARCH_TABLE)  # set up FTS table
 
+        # default min/max values
+        defaults = {"support_min": -1, "support_max": -1,
+                    "length_min": -1, "length_max": -1,
+                    "depth_min": -1, "depth_max": -1,
+                    "width_min": -1, "width_max": -1,
+                    "order_by": "id ASC"}
+
         metadata = dict()
         with NTriples(args.input) as g:
             # populate database with patterns
-            metadata = populate_db(conn, g)
+            metadata = populate_db(conn, g, defaults)
 
         # copy patterns and IDs to FTS table
         copy_db_columns(conn, DB_SEARCH_TABLE_NAME,
@@ -362,6 +442,7 @@ if __name__ == "__main__":
             Timer(1, open_browser, [args.port]).start()
 
         # run flask app
-        web_app = create_app(args.input, conn, metadata, args.pagesize)
+        web_app = create_app(args.input, conn, metadata, defaults,
+                             args.pagesize)
         with app.app_context():
             web_app.run(debug=args.verbose, port=args.port)

@@ -44,82 +44,104 @@
             {%for k,v in metadata.items()%}
             <tr>
                 <td>{{k}}</td>
-                <td>{{v}}</td>
+                <td>{{', '.join(v)}}</td>
             </tr>
             {%endfor%}
             </table>
         </div>
 
         <h2>Patterns</h2>
-        <button type="button" onclick="toggleCollapse(this.nextElementSibling)" class="collapsible">Filters</button>
         <div id="filter">
             <form action="{{ url_for('viewer') }}" method="POST">
                 <fieldset style="float:left;">
+                    <legend>Order by</legend>
+                    <select id="order_by" name="order_by" size="1">
+                        <option value="id ASC" {% if filters["order_by"] == "id ASC" %} selected {% endif %} >ID - ASC</option>
+                        <option value="hasSupport ASC" {% if filters["order_by"] == "support ASC" %} selected {% endif %} >Support - ASC</option>
+                        <option value="hasDepth ASC" {% if filters["order_by"] == "depth ASC" %} selected {% endif %} >Depth - ASC</option>
+                        <option value="hasLength ASC" {% if filters["order_by"] == "length ASC" %} selected {% endif %} >Length - ASC</option>
+                        <option value="hasWidth ASC" {% if filters["order_by"] == "width ASC" %} selected {% endif %} >Width - ASC</option>
+                        <option value="id DESC" {% if filters["order_by"] == "id DESC" %} selected {% endif %} >ID - DESC</option>
+                        <option value="hasSupport DESC" {% if filters["order_by"] == "support DESC" %} selected {% endif %} >Support - DESC</option>
+                        <option value="hasDepth DESC" {% if filters["order_by"] == "depth DESC" %} selected {% endif %} >Depth - DESC</option>
+                        <option value="hasLength DESC" {% if filters["order_by"] == "length DESC" %} selected {% endif %} >Length - DESC</option>
+                        <option value="hasWidth DESC" {% if filters["order_by"] == "width DESC" %} selected {% endif %} >Width - DESC</option>
+                    </select>
+                </fieldset>
+                <fieldset style="float:left;">
                     <legend>Support</legend>
-                    <input type="number" id="filter_support_range_from" name="filter_support_range_from" size="6" min="1" max="5" value="1"> to
-                    <input type="number" id="filter_support_range_to" name="filter_support_range_to" size="6" min="1" max="5" value="5">
+                    <input type="number" id="support_min" name="support_min" size="6" min={{ defaults["support_min"] }} max={{ defaults["support_max"] }} value={{ filters["support_min"] }}> to
+                    <input type="number" id="support_max" name="support_max" size="6" min={{ defaults["support_min"] }} max={{ defaults["support_max"] }} value={{ filters["support_max"] }}>
                 </fieldset>
                 <fieldset style="float:left;">
                     <legend>Length</legend>
-                    <input type="number" id="filter_length_range_from" name="filter_length_range_from" size="6" min="1" max="5" value="1"> to
-                    <input type="number" id="filter_length_range_to" name="filter_length_range_to" size="6" min="1" max="5" value="5">
+                    <input type="number" id="length_min" name="length_min" size="6" min={{ defaults["length_min"] }} max={{ defaults["length_max"] }} value={{ filters["length_min"] }}> to
+                    <input type="number" id="length_max" name="length_max" size="6" min={{ defaults["length_min"] }} max={{ defaults["length_max"] }} value={{ filters["length_max"] }}>
                 </fieldset>
                 <fieldset style="float:left;">
                     <legend>Depth</legend>
-                    <input type="number" id="filter_depth_range_from" name="filter_depth_range_from" size="6" min="1" max="5" value="1"> to
-                    <input type="number" id="filter_depth_range_to" name="filter_depth_range_to" size="6" min="1" max="5" value="5">
+                    <input type="number" id="depth_min" name="depth_min" size="6" min={{ defaults["depth_min"] }} max={{ defaults["depth_max"] }} value={{ filters["depth_min"] }}> to
+                    <input type="number" id="depth_max" name="depth_max" size="6" min={{ defaults["depth_min"] }} max={{ defaults["depth_max"] }} value={{ filters["depth_max"] }}>
                 </fieldset>
                 <fieldset style="float:left;">
                     <legend>Width</legend>
-                    <input type="number" id="filter_width_range_from" name="filter_width_range_from" size="6" min="1" max="5" value="1"> to
-                    <input type="number" id="filter_width_range_to" name="filter_width_range_to" size="6" min="1" max="5" value="5">
+                    <input type="number" id="width_min" name="width_min" size="6" min={{ defaults["width_min"] }} max={{ defaults["width_max"] }} value={{ filters["width_min"] }}> to
+                    <input type="number" id="width_max" name="width_max" size="6" min={{ defaults["width_min"] }} max={{ defaults["width_max"] }} value={{ filters["width_max"] }}>
                 </fieldset>
                 <fieldset style="float:left;">
                     <legend>Text Search</legend>
                     <input type="search" id="text_search" name="text_search" size="40" placeholder="keyword(s)">
+                    <button type="button">Clear</button>
                 </fieldset>
+                <button type="button">Reset</button>
                 <input type="submit" value="Apply" style="float:right">
             </form>
         </div>
         <br/>
+        <input type="submit" value="Randomize">
 
-        {%for query in cursor.fetchmany(pagesize):%}
-        <div id="query_{{ query['id'] }}" class="pattern">
-            <table>
-            <tr>
-                <td><b>id</b></td>
-                <td>{{ query['id'] }}</td>
-            </tr>
-            <tr>
-                <td>support</td>
-                <td>{{ query['hasSupport'] }}</td>
-            </tr>
-            <tr>
-                <td>depth</td>
-                <td>{{ query['hasDepth'] }}</td>
-            </tr>
-            <tr>
-                <td>width</td>
-                <td>{{ query['hasWidth'] }}</td>
-            </tr>
-            <tr>
-                <td>length</td>
-                <td>{{ query['hasLength'] }}</td>
-            </tr>
-            <tr>
-                <td>pattern</td>
-                <td class="query">
-                    <pre>
-                        <code class="sparql">{{ query['hasPattern'] }}</code>
-                    </pre>
-                </td>
-            </tr>
-            </table>
-            <p class="graph">{{ query['hasDOTRrepresentation'] }}</p>
-            <button type="button" onclick="drawGraph({{ "query_" ~ query['id'] }}.querySelectorAll(':scope > .graph')[0])">draw graph</button>
+        <div id="patterns">
+            {%for query in cursor.fetchmany(pagesize):%}
+            <div id="query_{{ query['id'] }}" class="pattern">
+                <table>
+                <tr>
+                    <td><b>id</b></td>
+                    <td>{{ query['id'] }}</td>
+                </tr>
+                <tr>
+                    <td>support</td>
+                    <td>{{ query['hasSupport'] }}</td>
+                </tr>
+                <tr>
+                    <td>depth</td>
+                    <td>{{ query['hasDepth'] }}</td>
+                </tr>
+                <tr>
+                    <td>width</td>
+                    <td>{{ query['hasWidth'] }}</td>
+                </tr>
+                <tr>
+                    <td>length</td>
+                    <td>{{ query['hasLength'] }}</td>
+                </tr>
+                <tr>
+                    <td>pattern</td>
+                    <td class="query">
+                        <pre>
+                            <code class="sparql">{{ query['hasPattern'] }}</code>
+                        </pre>
+                    </td>
+                </tr>
+                </table>
+                <p class="graph">{{ query['hasDOTRrepresentation'] }}</p>
+                <button type="button" onclick="drawGraph({{ "query_" ~ query['id'] }}.querySelectorAll(':scope > .graph')[0])">draw graph</button>
+                </div>
         </div>
         <br/>
         {%endfor%}
+        <br/>
+            <button type="button" id="prev_page" style="float:left">Previous Page</button>  
+            <button type="button" id="next_page">Next Page</button>
         <hr/>
         <p>This tool is partly funded by the CLARIAH Research Infrastructure - 
         <a href="https://gitlab.com/wxwilcke/hypodisc">gitlab.com/wxwilcke/hypodisc<a></p>

@@ -23,11 +23,8 @@ body {
 } 
 
 #filter {
-  padding: 0 18px;
+  padding: 0 18px 80px;
   background-color: #f2f7ff ;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.2s ease-out;
 } 
 
 .collapsible {
