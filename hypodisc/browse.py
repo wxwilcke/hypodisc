@@ -6,12 +6,13 @@ import logging
 from os import access, getcwd, R_OK
 from os.path import isfile
 import sqlite3
+from multiprocessing import Process
 from tempfile import NamedTemporaryFile
 from threading import Timer
 from typing import cast
 import webbrowser
 
-from flask import current_app, Flask, render_template, url_for, request
+from flask import current_app, Flask, render_template, request
 
 from rdf.formats import NTriples
 from rdf.namespaces import RDF, XSD
@@ -49,30 +50,90 @@ app = Flask(__name__, root_path=f'{getcwd()}/hypodisc/www/')
 app.config['SERVER_NAME'] = '127.0.0.1:5000'
 
 
-@app.route('/', methods=['GET', 'POST'])
-def viewer():
-    query = DB_QUERY_ALL
-    filter_values = {k: v for k, v
-                     in current_app.defaults.items()}  # type: ignore
-    if request.method == 'POST':
-        filter_values_provided = request.form
-        query = generate_query(filter_values_provided, DB_PRIMARY_TABLE_NAME)
+@app.route('/shutdown', methods=['GET'])
+def shutdown():
+    request.shutdown()
+    
 
-        filter_values.update(filter_values_provided)
+@app.route('/viewer', methods=['GET', 'POST'])
+def viewer():
+    offset = 0
+    pagenum = current_app.pagenum  # type: ignore
+    pagesize = current_app.pagesize  # type: ignore
+    if request.method == 'POST':
+        if request.is_json:
+            data = request.get_json()
+            if "id" in data.keys() and "selected" in data.keys():
+                # save query checkbox ticked
+                q_id = int(data["id"])
+                q_tagged = data["selected"]
+                if q_tagged is False:
+                    current_app.favorites.remove(q_id)  # type: ignore
+                else:
+                    current_app.favorites.add(q_id)  # type: ignore
+        else:
+            if "reset" in request.form.keys():
+                current_app.filters = current_app.defaults  # type: ignore
+            elif "apply" in request.form.keys():
+                current_app.filters = request.form  # type: ignore
+            elif "clear_text_search" in request.form.keys():
+                current_app.filters\
+                        = {k: v for
+                           k, v in current_app.filters.items()}  # type: ignore
+                current_app.filters["text_search"] = ''  # type: ignore
+
+            offset = 0  # reset when applying filters
+    elif request.method == 'GET':
+        if "page" in request.args.keys()\
+                and int(request.args["page"]) != pagenum:
+            page_diff = int(request.args["page"]) - pagenum
+
+            pagenum += page_diff
+            offset += page_diff * pagesize
+
+        if "pagesize" in request.args.keys()\
+                and int(request.args["pagesize"]) != pagesize:
+            pagesize = int(request.args["pagesize"])
+            current_app.pagesize = pagesize  # type: ignore
+
+            pagenum = 1
+            offset = 0  # reset when changing pagesize
+
+    # generate query
+    query = generate_query(current_app.filters, pagesize,  # type: ignore
+                           offset, DB_PRIMARY_TABLE_NAME)
 
     # retrieve data
-    qcur = current_app.cur.execute(query)  # type: ignore
+    data = current_app.cur.execute(query).fetchall()  # type: ignore
+
+    # disable buttons if on first/last page
+    first_page = False if offset > 0 else True
+    exhausted = False if len(data) > 0 else True
+
+    # disable save button if already saved
+    saved = True
+    unsaved_entries = True
 
     return render_template("default.html",
                            filename=current_app.filename,  # type: ignore
                            metadata=current_app.metadata,  # type: ignore
-                           cursor=qcur,
-                           pagesize=current_app.pagesize,  # type: ignore
+                           data=data,
+                           offset=offset,
+                           pagesize=pagesize,  # type: ignore
+                           pagenum=pagenum,
+                           max=max,
+                           first_page=first_page,
+                           exhausted=exhausted,
+                           saved=saved,
+                           unsaved_entries=unsaved_entries,
                            defaults=current_app.defaults,  # type: ignore
-                           filters=filter_values)  # type: ignore
+                           filters=current_app.filters,  # type: ignore
+                           favorites=current_app.favorites)  # type: ignore
 
 
-def generate_query(values: ImmutableMultiDict, table_name: str) -> str:
+def generate_query(values: dict | ImmutableMultiDict, limit: int,
+                   offset: int, table_name: str)\
+                           -> str:
     """ Generate query based on provided values.
 
     :param values:
@@ -101,11 +162,16 @@ def generate_query(values: ImmutableMultiDict, table_name: str) -> str:
 
     # order of results
     order = values.get("order_by")
+    if order == "random":
+        order = "RANDOM()"
+    else:
+        order_direction = values.get("order_by_dir")
+        order += f" {order_direction}"  # type: ignore
 
-    return """SELECT * FROM {} WHERE {} ORDER BY {};""".format(
+    return """SELECT * FROM {} WHERE {} ORDER BY {} LIMIT {} OFFSET {}""".format(
             table_name,
             """ AND """.join(constraints),
-            order)
+            order, limit, offset)
 
 
 def open_browser(port: int) -> None:
@@ -115,7 +181,7 @@ def open_browser(port: int) -> None:
     :type port: int
     :rtype: None
     """
-    webbrowser.open_new_tab(f'http://127.0.0.1:{port}')
+    webbrowser.open_new_tab(f'http://127.0.0.1:{port}/viewer')
 
 
 def process_pattern(data: dict[str, Literal | int])\
@@ -276,6 +342,7 @@ def copy_db_columns(conn: sqlite3.Connection, table_destination: str,
 
     conn.commit()
 
+
 def update_defaults(defaults: dict[str, int], pattern: dict[str, str | int])\
         -> None:
     """ Update default min/max values.
@@ -363,8 +430,8 @@ def setup_logger(verbose: bool) -> None:
 
 
 def create_app(filename: str, conn: sqlite3.Connection,
-               metadata: dict[str, list[str]], defaults: dict[str, int],
-               pagesize: int) -> Flask:
+               metadata: dict[str, list[str]], favorites: set[int],
+               defaults: dict[str, int], pagesize: int) -> Flask:
     """ Set up app variables.
 
     :param filename:
@@ -379,8 +446,11 @@ def create_app(filename: str, conn: sqlite3.Connection,
         current_app.filename = filename  # type: ignore
         current_app.cur = conn.cursor()  # type: ignore
         current_app.metadata = metadata  # type: ignore
+        current_app.pagenum = 1  # type: ignore
         current_app.pagesize = pagesize  # type: ignore
         current_app.defaults = defaults  # type: ignore
+        current_app.filters = defaults  # type: ignore
+        current_app.favorites = favorites  # type: ignore
 
     return app
 
@@ -422,7 +492,7 @@ if __name__ == "__main__":
                     "length_min": -1, "length_max": -1,
                     "depth_min": -1, "depth_max": -1,
                     "width_min": -1, "width_max": -1,
-                    "order_by": "id ASC"}
+                    "order_by": "id", "order_by_dir": "ASC"}
 
         metadata = dict()
         with NTriples(args.input) as g:
@@ -436,13 +506,17 @@ if __name__ == "__main__":
         # extract relevant metadata
         metadata = process_metadata(metadata)
 
+        # store IDs of queries to save later
+        favorites = set()  # type: set[int]
+
         # open viewer in default browser
         if not args.suppress_browser:
             pass
             Timer(1, open_browser, [args.port]).start()
 
         # run flask app
-        web_app = create_app(args.input, conn, metadata, defaults,
-                             args.pagesize)
+        web_app = create_app(args.input, conn, metadata, favorites,
+                             defaults, args.pagesize)
+
         with app.app_context():
             web_app.run(debug=args.verbose, port=args.port)
