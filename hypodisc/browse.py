@@ -3,19 +3,25 @@
 import argparse
 import codecs
 import logging
+from getpass import getuser
 from os import access, getcwd, R_OK
 from os.path import isfile
+from pathlib import Path
 import sqlite3
-from multiprocessing import Process
 from tempfile import NamedTemporaryFile
-from threading import Timer
+from multiprocessing import Process, Queue
+import time
+from datetime import datetime
+from time import sleep
 from typing import cast
+from threading import Timer
 import webbrowser
 
 from flask import current_app, Flask, render_template, request
 
 from rdf.formats import NTriples
-from rdf.namespaces import RDF, XSD
+from rdf.graph import Statement
+from rdf.namespaces import RDF, RDFS, XSD
 from rdf.terms import IRIRef, Literal
 from werkzeug.datastructures.structures import ImmutableMultiDict
 
@@ -23,7 +29,22 @@ from werkzeug.datastructures.structures import ImmutableMultiDict
 REPO_IRI = IRIRef("https://gitlab.com/wxwilcke/hypodisc")
 MLS_IRI = IRIRef("http://www.w3.org/ns/mls#")
 DCT_IRI = IRIRef("http://purl.org/dc/terms/")
-
+OUTPUT_FORMAT = ("https://www.iana.org/assignments/media-types/"
+                 "application/n-triples")
+OUTPUT_DESCRIPTION = ("A collection of SPARQL queries generated "
+                      "automatically by HypoDisc: a tool, funded "
+                      "by CLARIAH and developed by the DataLegend "
+                      "team (Xander Wilcke, Richard Zijdeman, Rick "
+                      "Mourits, Auke Rijpma, and Sytze van Herck), "
+                      "that can discover novel and "
+                      "potentially-interesting graph patterns "
+                      "in multimodal knowledge graphs which can be "
+                      "used by experts and scholars to form new "
+                      "research hypotheses, to support existing "
+                      "ones, or to gain insight into their data. "
+                      "This graph is a subset of the referenced model "
+                      "and contains only the queries that have been "
+                      "hand selected by the user.")
 DB_PRIMARY_TABLE_NAME = "pattern"
 DB_PRIMARY_TABLE_COLUMNS = ["id", "hasSupport", "hasLength", "hasWidth",
                             "hasDepth", "hasPattern", "hasDOTRepresentation"]
@@ -46,14 +67,18 @@ DB_SEARCH_TABLE = """CREATE VIRTUAL TABLE {} USING FTS5({}, {})""".format(
 DB_QUERY_ALL = f"SELECT * FROM {DB_PRIMARY_TABLE_NAME} ORDER BY id ASC"
 NUM_TRIPLES_PER_QUERY = len(DB_PRIMARY_TABLE_COLUMNS)
 
+TIME_FORMAT = "%y%m%dT%H%M%S"
+
 app = Flask(__name__, root_path=f'{getcwd()}/hypodisc/www/')
 app.config['SERVER_NAME'] = '127.0.0.1:5000'
 
 
 @app.route('/shutdown', methods=['GET'])
 def shutdown():
-    request.shutdown()
-    
+    current_app.q.put(None)  # type: ignore
+
+    return render_template("shutdown.html")
+
 
 @app.route('/viewer', methods=['GET', 'POST'])
 def viewer():
@@ -69,8 +94,14 @@ def viewer():
                 q_tagged = data["selected"]
                 if q_tagged is False:
                     current_app.favorites.remove(q_id)  # type: ignore
+                    current_app.num_unsaved_entries -= 1  # type: ignore
                 else:
                     current_app.favorites.add(q_id)  # type: ignore
+                    current_app.num_unsaved_entries += 1  # type: ignore
+
+            elif "write_to_disk" in data.keys() and data["write_to_disk"]:
+                write_selected_to_disk()  # type: ignore
+                current_app.num_unsaved_entries = 0  # type: ignore
         else:
             if "reset" in request.form.keys():
                 current_app.filters = current_app.defaults  # type: ignore
@@ -111,8 +142,9 @@ def viewer():
     exhausted = False if len(data) > 0 else True
 
     # disable save button if already saved
-    saved = True
-    unsaved_entries = True
+    saved = True  # or if no selected (default)
+    if current_app.num_unsaved_entries > 0:  # type: ignore
+        saved = False
 
     return render_template("default.html",
                            filename=current_app.filename,  # type: ignore
@@ -125,10 +157,81 @@ def viewer():
                            first_page=first_page,
                            exhausted=exhausted,
                            saved=saved,
-                           unsaved_entries=unsaved_entries,
                            defaults=current_app.defaults,  # type: ignore
                            filters=current_app.filters,  # type: ignore
                            favorites=current_app.favorites)  # type: ignore
+
+
+def write_selected_to_disk() -> None:
+    """ Write selected queries to disk. Add minimal metadata.
+
+    :rtype: None
+    """
+    edit_id = time.strftime(TIME_FORMAT)
+    source = Path(current_app.filename)  # type: ignore
+    filename = source.with_stem(f"{source.stem}-{edit_id}")
+    with NTriples(path=str(filename.absolute()), mode='w') as f_out:
+        base_ns = IRIRef(current_app.metadata['base'][-1])  # type: ignore
+        graph_label = base_ns + current_app.metadata['id'][-1] + '-' + edit_id
+
+        # write metadata
+        DCT = IRIRef("http://purl.org/dc/terms/")
+        MLS = IRIRef("http://www.w3.org/ns/mls#")
+
+        # output type
+        f_out.write((graph_label, RDF+"type", MLS + "Model"))
+
+        # output format
+        output_format = IRIRef(OUTPUT_FORMAT)
+        f_out.write((graph_label, DCT+"format", output_format))
+        f_out.write((output_format, RDF+"type", DCT+"MediaType"))
+
+        # part of
+        source_label = IRIRef(current_app.metadata["hasOutput"][-1])
+        f_out.write((graph_label, DCT + 'isPartOf', source_label))
+
+        # creation time
+        t_created = Literal(f"{datetime.isoformat(datetime.now())}",
+                            datatype=XSD+"dateTime")
+        f_out.write((graph_label, DCT+"date", t_created))
+
+        # output label
+        label = Literal("A subset of the referenced model", language="en")
+        f_out.write((graph_label, RDFS+"label", label))
+
+        # output description
+        description = Literal(OUTPUT_DESCRIPTION, language="en")
+        f_out.write((graph_label, DCT+"description", description))
+
+        # creator
+        creator = Literal(f"{getuser().title()}", datatype=XSD+'string')
+        f_out.write((graph_label, DCT+"creator", creator))
+
+        # generate query
+        placeholders = ', '.join(['?' for _ in current_app.favorites])
+        query = "SELECT * FROM {} WHERE id IN ({});".format(
+                DB_PRIMARY_TABLE_NAME, placeholders)
+        cur = current_app.cur.execute(query, tuple(current_app.favorites))
+
+        # write triples
+        for pattern in cur.fetchall():
+            iri = graph_label + "#Query_" + str(pattern['id'])
+            for r in ["hasSupport", "hasLength", "hasWidth",
+                      "hasDepth", "hasPattern", "hasDOTRepresentation"]:
+                pred = REPO_IRI + f"#{r}"
+                obj = pattern[r]
+                if type(obj) is str:
+                    # special formatting needed
+                    obj = obj.encode('unicode-escape').decode()
+                    obj = obj.replace('\\\\', '\\').replace('"', '\\"')
+                    if r == "hasPattern":
+                        # rm starting newline char
+                        obj = obj[2:]
+                dtype = XSD + "nonNegativeInteger" if type(obj) is int\
+                    else XSD + "string"
+
+                t = Statement(iri, pred, Literal(str(obj), datatype=dtype))
+                f_out.write(t)
 
 
 def generate_query(values: dict | ImmutableMultiDict, limit: int,
@@ -238,12 +341,12 @@ def process_metadata(data: list[tuple[IRIRef, IRIRef, IRIRef | Literal]])\
     :rtype: dict[str, list[str]]
     """
     hyperparameters = list()
-    base_ns, run_id = IRIRef("file://"), "UNKNOWN"
+    run_iri, base_ns, run_id = IRIRef("file://"), IRIRef("file://"), "UNKNOWN"
     for s, p, o in data:
         # extract base namespace and run identifier
         if p == RDF + "type" and o == MLS_IRI + "Run":
-            base_ns = s
-            _, run_id = split_IRI(s)
+            run_iri = s
+            base_ns, run_id = split_IRI(s)
 
             continue
 
@@ -253,10 +356,11 @@ def process_metadata(data: list[tuple[IRIRef, IRIRef, IRIRef | Literal]])\
             _, hyperparameter = split_IRI(o)
             hyperparameters.append(hyperparameter)
 
-    metadata = {'id': [run_id]}  # type: dict[str, list[str]]
-    hyperparameters_IRIs = [base_ns + hp for hp in hyperparameters]
+    metadata = {'id': [run_id],
+                'base': [str(base_ns)]}  # type: dict[str, list[str]]
+    hyperparameters_IRIs = [run_iri + hp for hp in hyperparameters]
     for s, p, o in data:
-        if s == base_ns:
+        if s == run_iri:
             if o in hyperparameters_IRIs:
                 # skip link to hyperparameters
                 continue
@@ -431,7 +535,7 @@ def setup_logger(verbose: bool) -> None:
 
 def create_app(filename: str, conn: sqlite3.Connection,
                metadata: dict[str, list[str]], favorites: set[int],
-               defaults: dict[str, int], pagesize: int) -> Flask:
+               defaults: dict[str, int], pagesize: int, q: Queue) -> Flask:
     """ Set up app variables.
 
     :param filename:
@@ -451,6 +555,9 @@ def create_app(filename: str, conn: sqlite3.Connection,
         current_app.defaults = defaults  # type: ignore
         current_app.filters = defaults  # type: ignore
         current_app.favorites = favorites  # type: ignore
+        current_app.q = q  # type: ignore
+        current_app.unsaved_entries = False  # type: ignore
+        current_app.num_unsaved_entries = 0  # type: ignore
 
     return app
 
@@ -511,12 +618,28 @@ if __name__ == "__main__":
 
         # open viewer in default browser
         if not args.suppress_browser:
-            pass
             Timer(1, open_browser, [args.port]).start()
+
+        # queue to receive shutdown signal
+        q = Queue()
 
         # run flask app
         web_app = create_app(args.input, conn, metadata, favorites,
-                             defaults, args.pagesize)
+                             defaults, args.pagesize, q)
 
         with app.app_context():
-            web_app.run(debug=args.verbose, port=args.port)
+            try:
+                server = Process(target=web_app.run,
+                                 kwargs={'debug': args.verbose,
+                                         'port': args.port,
+                                         'threaded': False})
+                server.start()
+
+                q.get(block=True)
+                sleep(1)  # allow redirect to shutdown page
+                server.kill()
+
+                print("\nShutdown Successful. ",
+                      "Press Ctrl-C to return to the terminal.", end='')
+            except KeyboardInterrupt:
+                print("\nGoodbye")

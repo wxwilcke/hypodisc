@@ -11,10 +11,66 @@
             hljs.highlightAll();
         </script>
         <script type="text/javascript">
+            var selected = 0;
+            function saveQuery(elem, id) {
+                fetch("{{ url_for('viewer') }}", {
+                    method: 'post',
+                    body: JSON.stringify({ 'id': id, 'selected': elem.checked }),
+                    headers: {
+                        'Accept': 'text/html',
+                        'Content-Type': 'application/json'
+                    }
+                }).then((response) => {
+                    return response.text
+                }).then((res) => {
+                    if (res.status === 201) {
+                        console.log("Success")
+                    }
+                }).catch((error) => {
+                    console.log(error)
+                })
+
+                if (elem.checked) {
+                    selected++;
+                } else {
+                    selected--;
+                }
+
+                toggleSaveButton();
+            }
+            function saveQueries() {
+                fetch("{{ url_for('viewer') }}", {
+                    method: 'post',
+                    body: JSON.stringify({ 'write_to_disk': true }),
+                    headers: {
+                        'Accept': 'text/html',
+                        'Content-Type': 'application/json'
+                    }
+                }).then((response) => {
+                    return response.text()
+                }).then((res) => {
+                    if (res.status === 201) {
+                        console.log("Success")
+                    }
+                }).catch((error) => {
+                    console.log(error)
+                })
+
+                selected = 0
+                toggleSaveButton();
+            }
+            function toggleSaveButton() {
+                let button = document.getElementById("save_button");
+                if (selected > 0) {
+                    button.removeAttribute("disabled");
+                } else {
+                    button.setAttribute("disabled", "disabled");
+                }
+            }
             function quit() {
-                let unsaved_entries = {% if unsaved_entries %} true {% else %} false {% endif %};
+                let unsaved_entries = {% if not saved %} true {% else %} false {% endif %};
                 let confirmed = true;
-                if (unsaved_entries){
+                if (unsaved_entries || selected > 0){
                     confirmed = confirm("You have unsaved patterns. Are you sure?");
                 }
 
@@ -22,26 +78,7 @@
                     window.location.href = "{{ url_for('shutdown') }}";
                 }
             }
-        </script>
-        <script type="text/javascript">
-            function saveQuery(elem, id) {
-                fetch("{{ url_for('viewer') }}", {
-                    method: 'post',
-                    body: JSON.stringify({ 'id': id, 'selected': elem.checked }),
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
-                }).then((response) => {
-                    return response.json()
-                }).then((res) => {
-                    if (res.status === 201) {
-                        console.log("Post successfully created!")
-                    }
-                }).catch((error) => {
-                    console.log(error)
-                })
-            }
+
         </script>
         <script type="text/javascript">
             function addURLparam(name, value) {
@@ -78,7 +115,7 @@
         <b>Filename: {{ filename }}</b>
 
         <div id="manage">
-            <button type="button" {% if saved or not unsaved_entries %} disabled {% endif %}>Save</button>
+            <button type="button" id="save_button" onclick="saveQueries()" {% if saved %} disabled {% endif %}>Save</button>
             <button type="button" onclick="quit()">Quit</button>
         </div>
         <h2>Meta Data</h2>
