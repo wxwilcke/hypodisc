@@ -94,17 +94,25 @@
             }
         </script>
         <script type="text/javascript">
-            function drawGraph(elem) {
-                var data = vis.parseDOTNetwork(elem.innerText);
+            function drawGraph(parent) {
+                parent.style.display = "block";
 
-                let nodes = data.nodes;
-                for (var i = 0; i < nodes.length; i++) {
-                    if (nodes[i].label.includes('\n')) {
-                        nodes[i].font = { align: "left" };
+                let elem = parent.querySelector('.graph');
+                if (elem.textContent) {
+                    var data = vis.parseDOTNetwork(elem.textContent);
+
+                    let nodes = data.nodes;
+                    for (var i = 0; i < nodes.length; i++) {
+                        if (nodes[i].label.includes('\n')) {
+                            nodes[i].font = { align: "left" };
+                        }
                     }
+                    var options = data.options;
+                    var network = new vis.Network(elem, data, options);
                 }
-                var options = data.options;
-                var network = new vis.Network(elem, data, options);
+            }
+            function closePopup(elem) {
+                elem.style.display = "none";
             }
         </script>
         <meta charset="utf-8">
@@ -114,12 +122,12 @@
     </head>
     <body>
         <h1>HypoDisc Pattern Browser</h1>
-        <b>Filename: {{ filename }}</b>
-
-        <div id="manage">
-            <button type="button" id="save_button" onclick="saveQueries()" {% if saved %} disabled {% endif %}>Save</button>
-            <button type="button" onclick="quit()">Quit</button>
+        <div class="topnav">
+            <button class="button" type="button" id="save_button" onclick="saveQueries()" {% if saved %} disabled {% endif %}>Save</button>
+            <button class="button" type="button" onclick="quit()">Quit</button>
         </div>
+        <b class="name">Filename: {{ filename }}</b>
+
         <h2>Meta Data</h2>
         <button type="button" onclick="toggleCollapse(this.nextElementSibling)" class="collapsible">show more</button>
         <div id="metadata">
@@ -177,8 +185,8 @@
                     <input type="search" id="text_search" name="text_search" size="30" placeholder="{{ filters['text_search'] }}">
                     <input type="submit" name="clear_text_search" value="Clear">
                 </fieldset>
-                <input type="submit" name="reset" value="Reset">
-                <input type="submit" name="apply" value="Apply" style="float:right">
+                <input class="button" type="submit" name="reset" value="Reset" style="float:right; background-color: red;">
+                <input class="button" type="submit" name="apply" value="Apply" style="float:right;">
             </form>
         </div>
         <br/>
@@ -187,7 +195,6 @@
             <p id="no_more_queries_msg">No more queries</p>
             {% else %}
             {%for query in data:%}
-            <section class="container">
             <div id="query_{{ query['id'] }}" class="pattern">
                 <label><input type="checkbox" class="save_query" name="save_query" id="save_{{ query['id'] }}" onclick="saveQuery(this, {{ query['id'] }})" {% if query['id'] in favorites %} checked {% endif %} >Save Query</label>
                 <table>
@@ -220,22 +227,24 @@
                     </td>
                 </tr>
                 </table>
+                <button class="button" type="button" onclick="drawGraph(this.nextElementSibling)">draw graph</button>
+                <div class="visgraph" >
+                    <div class="visgraph-inner" >
+                        <span class="close" onclick="closePopup(this.parentElement.parentElement)">&times;</span>
+                        <div class="graph">{{ query['hasDOTRepresentation'] }}</div>
+                    </div>
+                </div>
             </div>
-            <div id="graph_{{ query['id'] }}" class="graph">
-                <button type="button" onclick="drawGraph(this.nextElementSibling)">draw graph</button>
-                <div class="visgraph" >{{ query['hasDOTRepresentation'] }}</div>
-            </div>
-            </section>
             {%endfor%}
             {% endif %}
         </div>
         <br/>
         <br/>
             <form >
-                <button name="prev_page" type="button" onclick="addURLparam('page', {{ max(pagenum - 1, 1) }})" {% if first_page %} disabled {% endif %} style="float:left;">Previous Page</button>
+                <button class="button" name="prev_page" type="button" onclick="addURLparam('page', {{ max(pagenum - 1, 1) }})" {% if first_page %} disabled {% endif %} style="float:left;">Previous Page</button>
             </form>
             <form >
-                <button name="next_page" type="button" onclick="addURLparam('page', {{ pagenum + 1 }})" {% if exhausted %} disabled {% endif %} >Next Page</button>
+                <button class="button" name="next_page" type="button" onclick="addURLparam('page', {{ pagenum + 1 }})" {% if exhausted %} disabled {% endif %} >Next Page</button>
             </form>
             <form>
                 <fieldset>
