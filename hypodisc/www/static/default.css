@@ -6,13 +6,24 @@ body {
   font-family: geneva, sans-serif ;
 }
 
-.pattern { 
+.container { 
   background-color: #f2f7ff ;
   outline-style: double ;
-  width: 100% ;
-  padding: 5px ;
+  display: flex;
 }
 
+.pattern {
+  flex: 50%;
+}
+
+.graph {
+  flex: 50%;
+}
+
+.visgraph {
+  height: 800px ;
+  width: 800px ;
+}
 
 #metadata {
   padding: 0 18px;

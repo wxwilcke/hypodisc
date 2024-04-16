@@ -78,16 +78,11 @@
                     window.location.href = "{{ url_for('shutdown') }}";
                 }
             }
-
-        </script>
-        <script type="text/javascript">
             function addURLparam(name, value) {
                 let url = new URL(window.location.href);
                 url.searchParams.set(name, value);
                 window.location.href = url.href;
             }
-        </script>
-        <script type="text/javascript">
             function toggleCollapse(elem) {
                 //const elem = document.getElementById("metadata");
 
@@ -101,6 +96,13 @@
         <script type="text/javascript">
             function drawGraph(elem) {
                 var data = vis.parseDOTNetwork(elem.innerText);
+
+                let nodes = data.nodes;
+                for (var i = 0; i < nodes.length; i++) {
+                    if (nodes[i].label.includes('\n')) {
+                        nodes[i].font = { align: "left" };
+                    }
+                }
                 var options = data.options;
                 var network = new vis.Network(elem, data, options);
             }
@@ -185,7 +187,9 @@
             <p id="no_more_queries_msg">No more queries</p>
             {% else %}
             {%for query in data:%}
+            <section class="container">
             <div id="query_{{ query['id'] }}" class="pattern">
+                <label><input type="checkbox" class="save_query" name="save_query" id="save_{{ query['id'] }}" onclick="saveQuery(this, {{ query['id'] }})" {% if query['id'] in favorites %} checked {% endif %} >Save Query</label>
                 <table>
                 <tr>
                     <td><b>id</b></td>
@@ -216,10 +220,12 @@
                     </td>
                 </tr>
                 </table>
-                <p class="graph">{{ query['hasDOTRrepresentation'] }}</p>
-                <button type="button" onclick="drawGraph({{ "query_" ~ query['id'] }}.querySelectorAll(':scope > .graph')[0])">draw graph</button>
-                <label><input type="checkbox" class="save_query" name="save_query" id="save_{{ query['id'] }}" onclick="saveQuery(this, {{ query['id'] }})" {% if query['id'] in favorites %} checked {% endif %} >Save Query</label>
             </div>
+            <div id="graph_{{ query['id'] }}" class="graph">
+                <button type="button" onclick="drawGraph(this.nextElementSibling)">draw graph</button>
+                <div class="visgraph" >{{ query['hasDOTRepresentation'] }}</div>
+            </div>
+            </section>
             {%endfor%}
             {% endif %}
         </div>

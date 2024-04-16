@@ -405,7 +405,7 @@ class GraphPattern():
         dot = r"strict digraph { "
         dot += r"subgraph glabel { glabel [shape = box,  label = \""
         for k,v in prefix_map.items():
-            dot += fr"{v}: <{k}>\l"
+            dot += fr"{v}: <{k}>\\n"
         dot += r"\"] } "
         dot += r"edge [ minlen = 2 ];"
         dot += r"\"root\" [shape = oval, label = \"?s\", style = bold ]; "
