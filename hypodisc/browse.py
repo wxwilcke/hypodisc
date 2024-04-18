@@ -370,7 +370,11 @@ def process_metadata(data: list[tuple[IRIRef, IRIRef, IRIRef | Literal]])\
             if p_term not in metadata.keys():
                 metadata[p_term] = list()
 
-            metadata[p_term].append(o.value)
+            value = o.value
+            if p_term == "date":
+                value = datetime.fromisoformat(o.value).ctime()
+
+            metadata[p_term].append(value)
         elif p == MLS_IRI + "hasValue":
             for i, hp_iri in enumerate(hyperparameters_IRIs):
                 if s == hp_iri:
@@ -378,6 +382,16 @@ def process_metadata(data: list[tuple[IRIRef, IRIRef, IRIRef | Literal]])\
                     s_term = hyperparameters[i]
                     if s_term not in metadata.keys():
                         metadata[s_term] = list()
+
+                    if str(hp_iri).endswith('namespace'):
+                        for ns in o.value[1:-1].split('), ('):
+                            ns = ns.replace("'", '')  # rmv quotes
+                            ns = ns.replace('(', '').replace(')', '')
+                            ns = ': '.join(ns.split(', '))
+
+                            metadata[s_term].append(ns)
+
+                        break
 
                     metadata[s_term].append(o.value)
 
