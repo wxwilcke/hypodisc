@@ -6,6 +6,8 @@ Discovering Novel and Potentially Interesting Substructures in Knowledge Graphs
 
 Hypodisc aims to discover novel and potentially interesting substructures in multimodal heterogeneous knowledge bases, encoded as [RDF](https://www.w3.org/TR/rdf12-concepts) knowledge graphs. Scholars can then use these substructures as a starting point to form new research hypotheses or to support existing ones, or to simply gain more insight into the knowledge, information, and data that is contained in their collections.
 
+The official documentation can be found [here](https://wxwilcke.gitlab.io/hypodisc/).
+
 ### Multimodal Hypotheses
 
 Hypodisc supports multimodal information of various types, which, in accordance to the RDF data model, are stored as string literals with an accompanying datatype or language tag. At present, Hypodisc understands numerical and temporal datatypes, as well as natural language and other strings. Literals with language tags are also treated as strings. To discover meaningful patterns in these data, a cluster-based approach is applied to all elements of the same datatype with a certain context.
