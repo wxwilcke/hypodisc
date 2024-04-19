@@ -642,18 +642,12 @@ if __name__ == "__main__":
                              defaults, args.pagesize, q)
 
         with app.app_context():
-            try:
-                server = Process(target=web_app.run,
-                                 kwargs={'debug': args.verbose,
-                                         'port': args.port,
-                                         'threaded': False})
-                server.start()
+            server = Process(target=web_app.run,
+                             kwargs={'debug': args.verbose,
+                                     'port': args.port,
+                                     'threaded': False})
+            server.start()
 
-                q.get(block=True)
-                sleep(1)  # allow redirect to shutdown page
-                server.kill()
-
-                print("\nShutdown Successful. ",
-                      "Press Ctrl-C to return to the terminal.", end='')
-            except KeyboardInterrupt:
-                print("\nGoodbye")
+            q.get(block=True)
+            sleep(1)  # allow redirect to shutdown page
+            server.kill()

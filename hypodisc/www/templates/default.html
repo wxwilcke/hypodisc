@@ -56,6 +56,14 @@
                     console.log(error)
                 })
 
+                let button = document.getElementById("save_button");
+                let last = button.innerHTML;
+                button.innerHTML = 'Saved!';
+                setTimeout(function () {
+                    this.innerHTML = last;
+                    clicked = false;
+                }.bind(button), 1000);
+
                 selected = 0
                 toggleSaveButton();
             }
@@ -95,6 +103,13 @@
             function copyQuery(elem) {
                 let text = elem.getAttribute('data-name');
                 navigator.clipboard.writeText(text);
+
+                let last = elem.innerHTML;
+                elem.innerHTML = 'Copied!';
+                setTimeout(function () {
+                    this.innerHTML = last;
+                    clicked = false;
+                }.bind(elem), 1000);
             } 
         </script>
         <script type="text/javascript">
@@ -278,8 +293,10 @@
                 <button class="button" name="next_page" type="button" onclick="addURLparam('page', {{ pagenum + 1 }})" {% if exhausted %} disabled {% endif %} >Next Page</button>
             </div>
         </div>
-        <hr/>
-        <p>This tool is partly funded by the CLARIAH Research Infrastructure - 
-        <a href="https://gitlab.com/wxwilcke/hypodisc">gitlab.com/wxwilcke/hypodisc<a></p>
+        <div class="footer">
+            <hr/>
+            <p>This tool is partly funded by the CLARIAH Research Infrastructure - 
+            <a href="https://gitlab.com/wxwilcke/hypodisc">gitlab.com/wxwilcke/hypodisc<a></p>
+        </div>
     </body>
 </html>

@@ -1,0 +1,35 @@
+body { 
+  background-color: #d8dee9 ;
+  text-align: left ;
+  color: #2e3440 ;
+  margin-left: 1% ;
+  font-family: geneva, sans-serif ;
+}
+
+h1{
+  font-size: 40px;
+}
+
+a:link {
+  color: #81a1c1 ;
+  text-decoration: none ;
+}
+
+a:visited {
+  color: #5e81ac ;
+  text-decoration: none ;
+
+}
+
+a:hover {
+  color: #5e81ac ;
+  text-decoration: underline ;
+}
+
+
+.footer { 
+  margin-left: 0% ;
+    position: fixed; 
+    bottom:0%;
+    width:100%; 
+}
