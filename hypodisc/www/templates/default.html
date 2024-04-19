@@ -123,6 +123,8 @@
                     let nodes = data.nodes;
                     for (var i = 0; i < nodes.length; i++) {
                         if (nodes[i].label.includes('\n')) {
+                            nodes[i].x = -200;
+                            nodes[i].y = -200;
                             nodes[i].font = {'align': "left",
                                              'color': '#eceff4'};
                         } else {
@@ -160,7 +162,8 @@
                     <button class="button" type="button" id="save_button" onclick="saveQueries()" {% if saved %} disabled {% endif %}>Save</button>
                     <button class="button" type="button" onclick="quit()" style="background-color: #bf616a;">Quit</button>
                 </div>
-                <button type="button" onclick="toggleCollapse(document.getElementById('metadata'))" class="button" id="metadata_button">Provenance Information</button>
+                <button type="button"
+                    onclick="toggleCollapse(document.getElementById('metadata'))" class="button" id="metadata_button">Toggle Provenance Information</button>
             </div>
         </div>
 
@@ -175,11 +178,16 @@
             </table>
         </div>
 
+        <div class="links">
+            &#9658; <a href="https://wxwilcke.gitlab.io/hypodisc/index.html" target="_blank">Documentation</a>
+            &#9658; <a href="https://gitlab.com/wxwilcke/hypodisc" target="_blank">Source</a>
+        </div>
+        
         <fieldset class="patternlst">
             <legend id="patternlst_title">Patterns</legend>
             <div id="filter">
                 <form action="{{ url_for('viewer', pagesize=pagesize) }}" method="POST">
-                    <fieldset style="float:left;">
+                    <fieldset class="with_tooltip" style="float:left;">
                         <legend>Order by</legend>
                         <select id="order_by" name="order_by" size="1">
                             <option value="id" {% if filters["order_by"] == "id" %} selected {% endif %} >ID</option>
@@ -194,31 +202,37 @@
                             <option value="ASC" {% if filters["order_by_dir"] == "ASC" %} selected {% endif %} >ASC</option>
                             <option value="DESC" {% if filters["order_by_dir"] == "DESC" %} selected {% endif %} >DESC</option>
                         </select>
+                        <span class="tooltiptext">Sort the patterns by their various properties in ascending or descending order</span>
                     </fieldset>
-                    <fieldset style="float:left;">
+                    <fieldset class="with_tooltip" style="float:left;">
                         <legend>Support</legend>
                         <input type="number" id="support_min" name="support_min" size="6" min={{ defaults["support_min"] }} max={{ defaults["support_max"] }} value={{ filters["support_min"] }}> to
                         <input type="number" id="support_max" name="support_max" size="6" min={{ defaults["support_min"] }} max={{ defaults["support_max"] }} value={{ filters["support_max"] }}>
+                        <span class="tooltiptext">The number of entities that match a certain pattern</span>
                     </fieldset>
-                    <fieldset style="float:left;">
+                    <fieldset class="with_tooltip" style="float:left;">
                         <legend>Length</legend>
                         <input type="number" id="length_min" name="length_min" size="6" min={{ defaults["length_min"] }} max={{ defaults["length_max"] }} value={{ filters["length_min"] }}> to
                         <input type="number" id="length_max" name="length_max" size="6" min={{ defaults["length_min"] }} max={{ defaults["length_max"] }} value={{ filters["length_max"] }}>
+                        <span class="tooltiptext">The number of hops of the longest path in a certain pattern</span>
                     </fieldset>
-                    <fieldset style="float:left;">
+                    <fieldset class="with_tooltip" style="float:left;">
                         <legend>Depth</legend>
                         <input type="number" id="depth_min" name="depth_min" size="6" min={{ defaults["depth_min"] }} max={{ defaults["depth_max"] }} value={{ filters["depth_min"] }}> to
                         <input type="number" id="depth_max" name="depth_max" size="6" min={{ defaults["depth_min"] }} max={{ defaults["depth_max"] }} value={{ filters["depth_max"] }}>
+                        <span class="tooltiptext">The number of hops from the root entity that a certain pattern covers</span>
                     </fieldset>
-                    <fieldset style="float:left;">
+                    <fieldset class="with_tooltip" style="float:left;">
                         <legend>Width</legend>
                         <input type="number" id="width_min" name="width_min" size="6" min={{ defaults["width_min"] }} max={{ defaults["width_max"] }} value={{ filters["width_min"] }}> to
                         <input type="number" id="width_max" name="width_max" size="6" min={{ defaults["width_min"] }} max={{ defaults["width_max"] }} value={{ filters["width_max"] }}>
+                        <span class="tooltiptext">The number of properties in a certain pattern with the same source entity</span>
                     </fieldset>
-                    <fieldset style="float:left;">
+                    <fieldset class="with_tooltip" style="float:left;">
                         <legend>Text Search</legend>
                         <input type="search" id="text_search" name="text_search" size="30" placeholder="{{ filters['text_search'] }}">
                         <input type="submit" name="clear_text_search" value="Clear">
+                        <span class="tooltiptext" style="width: 315px; left: 19%;">Search for (parts of) text in the body of the patterns. Allows use of boolean operators ('AND', 'OR', and 'NOT')</span>
                     </fieldset>
                     <input class="button" type="submit" name="reset" value="Reset" style="float:right; background-color: #d08770;">
                     <input class="button" type="submit" name="apply" value="Apply" style="float:right;">
@@ -295,8 +309,8 @@
         </div>
         <div class="footer">
             <hr/>
-            <p>This tool is partly funded by the CLARIAH Research Infrastructure - 
-            <a href="https://gitlab.com/wxwilcke/hypodisc">gitlab.com/wxwilcke/hypodisc<a></p>
+            <p>This tool is partly funded by the CLARIAH Research Infrastructure &mdash; 
+            <a href="https://gitlab.com/wxwilcke/hypodisc" target="_blank">gitlab.com/wxwilcke/hypodisc</a></p>
         </div>
     </body>
 </html>

@@ -89,7 +89,7 @@ A simple facet browser can be used to interactively inspect the discovered patte
 
     python hypodisc/browse.py <PATTERN_GRAPH>
 
-.. image:: https://gitlab.com/wxwilcke/hypodisc/-/blob/main/tests/browser.png
+.. image:: https://gitlab.com/wxwilcke/hypodisc/-/raw/main/tests/browser.png
    :alt: A screenshot of the HypoDisc Pattern Browser
 
 The full range of options are listed below. ::

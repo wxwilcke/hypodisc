@@ -211,12 +211,48 @@ input {
   max-width: none!important;
 }
 
+.links {
+    float: right;
+}
+
+.links a {
+    margin-right: 10px;
+}
+
 .patternlst {
+    clear: both;
   background-color: #e5e9f0 ;
 }
 
 .patternlst #patternlst_title {
   font-size: 30px;
+}
+
+.with_tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.with_tooltip .tooltiptext {
+  visibility: hidden;
+  width: 250px;
+  background-color: #5e81ac;
+  color: #eceff4;
+  text-align: center;
+  border-radius: 5px;
+  padding: 5px;
+  position: absolute;
+  z-index: 1;
+  bottom: 155%;
+  left: 14%;
+  margin-left: -60px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.with_tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
 }
 
 h1{
