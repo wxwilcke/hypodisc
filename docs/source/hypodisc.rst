@@ -9,7 +9,7 @@ hypodisc module
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: hypodisc.browser
+.. automodule:: hypodisc.browse
    :members:
    :undoc-members:
    :show-inheritance:

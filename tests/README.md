@@ -26,4 +26,4 @@ Employ a depth-first search strategy (uses less memory, but algorithm does no lo
 
 View discovered patterns in browser:
 
-    hypodisc/browser.py out.nt 
+    hypodisc/browse.py out.nt 
