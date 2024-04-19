@@ -9,6 +9,11 @@ hypodisc module
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: hypodisc.browser
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 hypodisc.core module
 -----------------------------
 
