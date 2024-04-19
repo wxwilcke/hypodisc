@@ -86,6 +86,8 @@ A simple facet browser can be used to interactively inspect the discovered patte
 
     python hypodisc/browse.py <PATTERN_GRAPH>
 
+![Screenshot of Hypodisc Pattern Browser](tests/browser.png?raw=true "Hypodisc Pattern Browser")
+
 The full range of options are listed below. 
 
     usage: browser [-h] [--base_ns BASE_NS] [--pagesize PAGESIZE] [--port PORT] [--suppress_browser] [--verbose] input
