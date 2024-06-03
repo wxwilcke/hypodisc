@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 from setuptools import setup
-import toml
+import tomllib
 
 
-METADATA_FILE = "pyproject.py"
+METADATA_FILE = "pyproject.toml"
 
 
 def readme():
@@ -12,7 +12,8 @@ def readme():
         return f.read()
 
 
-metadata = toml.load(METADATA_FILE)
+with open(METADATA_FILE, 'rb') as fb:
+    metadata = tomllib.load(fb)
 
 
 setup(
