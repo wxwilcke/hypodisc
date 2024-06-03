@@ -1,7 +1,17 @@
 #!/usr/bin/env python
 
 from setuptools import setup
-import tomllib
+import sys
+try:
+    import tomllib as toml
+except ModuleNotFoundError:
+    try:
+        import toml
+    except ModuleNotFoundError:
+        print("Outdated Python version detected.\n"
+              "Please install 'toml' to continue: "
+              " pip3 install toml")
+        sys.exit(1)
 
 
 METADATA_FILE = "pyproject.toml"
@@ -12,8 +22,9 @@ def readme():
         return f.read()
 
 
-with open(METADATA_FILE, 'rb') as fb:
-    metadata = tomllib.load(fb)
+mode = 'rb' if sys.version_info >= (3, 11) else 'r'
+with open(METADATA_FILE, mode) as fb:
+    metadata = toml.load(fb)
 
 
 setup(

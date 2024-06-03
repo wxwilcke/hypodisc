@@ -1,12 +1,19 @@
 #! /usr/bin/env python
 
-try:
-    import tomllib
-except ImportError:
-    import toml as tomllib  # python < 3.11
 from typing import Optional, Tuple
 import random
 import sys
+try:
+    import tomllib as toml
+except ModuleNotFoundError:
+    try:
+        import toml
+    except ModuleNotFoundError:
+        print("Outdated Python version detected.\n"
+              "Please install 'toml' to continue: "
+              " pip3 install toml")
+        sys.exit(1)
+
 
 import numpy as np
 
@@ -97,7 +104,7 @@ def read_version(filename:str) -> str:
     """
     mode = 'rb' if sys.version_info >= (3, 11) else 'r'
     with open(filename, mode) as f:
-        rc = tomllib.load(f)
+        rc = toml.load(f)
 
     try:
         version = rc["project"]["version"]
