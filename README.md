@@ -2,6 +2,8 @@
 
 Discovering Novel and Potentially Interesting Substructures in Knowledge Graphs
 
+NB: The active repository of Hypodisc has moved to [github.com/CLARIAH/hypodisc](https://github.com/CLARIAH/hypodisc), and is under the care of the CLARIAH organisation. This repository will no longer be updated, and will remain available in an archived state.
+
 ## Description
 
 Hypodisc aims to discover novel and potentially interesting substructures in multimodal heterogeneous knowledge bases, encoded as [RDF](https://www.w3.org/TR/rdf12-concepts) knowledge graphs. Scholars can then use these substructures as a starting point to form new research hypotheses or to support existing ones, or to simply gain more insight into the knowledge, information, and data that is contained in their collections.
