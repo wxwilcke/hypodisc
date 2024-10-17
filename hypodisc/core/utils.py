@@ -5,10 +5,10 @@ import random
 import sys
 try:
     import tomllib as toml
-except ModuleNotFoundError:
+except ImportError:
     try:
         import toml
-    except ModuleNotFoundError:
+    except ImportError:
         print("Outdated Python version detected.\n"
               "Please install 'toml' to continue: "
               " pip3 install toml")
